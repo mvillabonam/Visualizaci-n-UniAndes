@@ -259,31 +259,6 @@ ejercicio.
 - **Respuesta**: En las bases de datos originales no hay valores vacíos que sea necesario tratar. 
   Por otra parte, tomando la base 
 
-```{r Checks por variable, echo=FALSE, message=FALSE}
-# --- población
-pob_neg <- pob_censal %>% filter(poblacion < 0 | is.na(poblacion))
-if (nrow(pob_neg) > 0) { cat("⚠ Hay registros con población negativa o NA:\n") print(pob_neg)
-} else { cat("No hay población negativa.\n") }
-
-# --- área
-if ("area" %in% names(mun_area)) {
-  area_ceros <- mun_area %>% filter(area <= 0 | is.na(area))
-  if (nrow(area_ceros) > 0) { cat("⚠ Hay registros con área <= 0 o NA:\n")
-    print(area_ceros) } else { cat("No hay áreas menores o iguales a 0.\n")}}
-
-# --- tipo de variables (deben coincidir las que son comunes)
-sapply(mun_area, class)
-sapply(pob_censal, class)
-
-# --- Nombres (Homogenizar)
-pob_censal <- pob_censal %>%
-  mutate(
-    dpnom = tools::toTitleCase(tolower(dpnom)),
-    mpio  = tools::toTitleCase(tolower(mpio))
-  )
-sort(unique(pob_censal$mpio))
-sort(unique(pob_censal$dpnom))
-```
 
 
 
