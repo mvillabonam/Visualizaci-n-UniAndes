@@ -344,3 +344,23 @@ pobxarea <- pob_censal %>%
 
 ```
 
+
+2. Reporte registros sin correspondencia en ambas direcciones.
+
+```{r Valores faltantes}
+  
+faltantes_en_pob_censal <- pob_censal %>%
+  anti_join(mun_area, by = c("dp", "dpmp"))
+
+
+faltantes_en_area <- mun_area %>%
+  anti_join(pob_censal, by = c("dp", "dpmp"))
+
+
+
+```
+
+
+
+3. Documente la cardinalidad (muchos-a-uno) y cómo evita relaciones muchos-a-muchos.
+
