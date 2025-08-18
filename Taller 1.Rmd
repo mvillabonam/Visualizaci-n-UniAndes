@@ -82,9 +82,9 @@ formato.
   municipio que representan y nos ayudan a diferenciarlas de los otros registros. Por otro lado, mpio_narea es una
   variable de medición que permite comparar el área del municipio con respecto al de los demás y nos permite
   clasificar los municipios por su tamaño o encontrar territorios con áreas similares.
-- **pob_censal**: dpnom, mpio  son tipo caracter mientras que dp, poblacion, dpmp, ano son tipo numérico (64 bits). 
+- **pob_censal**: dpnom, mpio  son tipo caracter mientras que dp, población, dpmp, ano son tipo numérico (64 bits). 
   De forma similar a la tabla anterior, todas las variables con excepcion de "poblacion" son de tipo identificación
-  que diferencian cada registro entre si, mientras que poblacion hace referencia a una variable numérica de medición
+  que diferencian cada registro entre si, mientras que población hace referencia a una variable numérica de medición
   la cual nos dice cual es el número de habitantes de cada municipio en un año determinado, permitiendo analizar su   
   distribución demográfica, comparar densidades poblacionales y estudiar la evolución de la población en el tiempo.
 
@@ -94,7 +94,7 @@ sapply(pob_censal, class)
 ```
 
 3. Proponga al menos 3 reglas mínimas de consistencia para asegurar la calidad de 
-los datosde las variables disponibles y que constituyen parte de la documentación 
+los datos de las variables disponibles y que constituyen parte de la documentación 
 del ejercicio.
 
 - **Regla 1**: La variable dp debe ser igual para cualquier municipio entre las bases de datos. 
@@ -166,21 +166,25 @@ rm(duplicados_pob, duplicados_area)
 
 3. Explique qué tipo de unión tendrían las tablas disponibles y por qué.
 
-- **Respuesta**: Si no quisieramos perder nada de información 
-  debería realizarse un outer join usando la llave creada anteriormente; en tanto es la manera en que preservamos 
-  más información sobre los municipios en cada año.Esto es: dado que las bases de datos solo 
-  comparten los años 1985 y 1993; pero comparten casi todos los municipios (exceptuando el 94663
-  solo disponible en población censal) podemos tener una base de datos única que 
-  contemple toda la información disponible en pob_censal y se complente 
-  con información relacionada al área del municipio para los años disponibles. 
+- **Respuesta**: Si no quisiéramos perder nada de información 
+  debería realizarse un outer join usando la llave creada anteriormente. El outer join es la manera en la
+  que preservamos más información sobre los municipios en cada año dado que este tipo de union busca mantener 
+  todos los datos de ambas tablas a relacionar, sin darle importancia a que la llave buscada se encuentre en 
+  ambas tablas.
   
-  Sin embargo, consiiderando que solo comparten 17 observaciones (Municipios y años comunes)
+  En nuestro caso, dado que las bases de datos solo comparten los años 1985 y 1993; pero comparten casi todos los       
+  municipios (exceptuando el 94663 solo disponible en población censal) podemos tener una base de datos única que 
+  contemple toda la información disponible en pob_censal y se complemente con información relacionada al área del
+  municipio para los años disponibles. 
+  
+  Sin embargo, considerando que solo comparten 17 observaciones (Municipios y años comunes)
   podría ser de interés solo preservar la data de población censal y agregar, para los años 
-  disponibles, el área de los 17 municipios en común. Lo anterior puede realziarse con un 
-  left join o right join.
+  disponibles, el área de los 17 municipios en común. Lo anterior puede realizarse con un 
+  left join o right join, dependiendo de cual tabla queramos mantener como la "principal" o la
+  tabla maestra.
   
   Además, procuramos preservar el formato long dado que este formato favorece la manipulación
-  de la infomración para el análisis descriptivo. 
+  de la información para el análisis descriptivo. 
 
 ```{r 3. Análisis unión, echo=FALSE, message=FALSE}
 # ==========================================================
