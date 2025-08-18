@@ -174,7 +174,7 @@ rm(duplicados_pob, duplicados_area)
   contemple toda la información disponible en pob_censal y se complente 
   con información relacionada al área del municipio para los años disponibles. 
   
-  Sin embargo, consiiderando que solo comparten 17 observaciones (Municipios y años comunes)
+  Sin embargo, considerando que solo comparten 17 observaciones (Municipios y años comunes)
   podría ser de interés solo preservar la data de población censal y agregar, para los años 
   disponibles, el área de los 17 municipios en común. Lo anterior puede realziarse con un 
   left join o right join.
@@ -246,10 +246,19 @@ cat("Llaves en común:", length(llaves_comunes), "\n")
 
 rm(llaves_pob,llaves_area,llaves_comunes,llaves_solo_pob,llave_solo_area)
 ```
+```{r Joins, echo=FALSE, message=FALSE}
+# --- población
+outer_joint <- full_join( mun_area, pob_censal,by = c("dpmp", "dp", "ano", "llave"))
+left_join_result <- left_join(pob_censal, mun_area, by = c("dpmp", "dp", "ano", "llave"))
+```
 
 4. Asegure tipos de datos correctos de acuerdo con las reglas que identificó previamente ( e.g.
 DP, DPMP caracteres que pueden iniciar con “0”; Población entera).
 
+5. Detecte datos faltantes y decida su tratamiento, si es necesario en el contexto de este
+ejercicio. 
+- **Respuesta**: En las bases de datos originales no hay valores vacíos que sea necesario tratar. 
+  Por otra parte, tomando la base 
 
 ```{r Checks por variable, echo=FALSE, message=FALSE}
 # --- población
@@ -267,12 +276,15 @@ if ("area" %in% names(mun_area)) {
 sapply(mun_area, class)
 sapply(pob_censal, class)
 
-# --- Estandarización
-
-
+# --- Nombres (Homogenizar)
+pob_censal <- pob_censal %>%
+  mutate(
+    dpnom = tools::toTitleCase(tolower(dpnom)),
+    mpio  = tools::toTitleCase(tolower(mpio))
+  )
+sort(unique(pob_censal$mpio))
+sort(unique(pob_censal$dpnom))
 ```
 
 
-4. Asegure tipos de datos correctos de acuerdo con las reglas que identificó previamente ( e.g.
-DP, DPMP caracteres que pueden iniciar con “0”; Población entera).
 
