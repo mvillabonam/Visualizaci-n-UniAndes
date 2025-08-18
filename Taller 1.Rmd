@@ -376,9 +376,27 @@ faltantes_en_pob_censal
 
 3. Documente la cardinalidad (muchos-a-uno) y cómo evita relaciones muchos-a-muchos.
 
+- **Respuesta**: Para el left-join la relación es de uno a uno, pues al unir las bases de datos a partir de una llave única (la combinación del código del
+municipio y el año) solo se agrega información para filas que comparten la misma unidad de observación. Ahora bien, para la unión mediante full-join; dado que realizamos la unión de la base de datos a partir de la cardinalidad "uno a muchos" en tanto, al unir únicamente mediante departamento y código de municipio, se asignó el área de los municipios sin importar el año al que se estuviera haciendo referencia. Lo anterior se realizó bajo el supuesto de que el área asignada a cada municipio no varía en función del tiempo.  
 
-- **Respuesta**: La relación es de uno a uno en tanto no existen llaves repeditas. 
+## Preguntas de indagación 
 
+1. ¿¿Cuáles son los 20 municipios de Colombia con mayor crecimiento poblacional desde 1985? Absoluto y porcentual
+```{r Pregunta 1 indagación}
+
+```
+2. ¿Cuáles son los 10 municipios de Colombia con mayor densidad en 1993 y en 2018?
+```{r Pregunta 2 indagación}
+
+```
+3. ¿Cuáles son los 5 departamentos de Colombia con mayor densidad en 1993 y en 2018?
+```{r Pregunta 3 indagación}
+
+```
+4. ¿Cómo ha cambiado la distribución de la población municipal colombiana desde 1985? Puede realizar un análisis por cuar@les o percen@les con gráficos.
+```{r Pregunta 4 indagación}
+
+```
 
 
 
