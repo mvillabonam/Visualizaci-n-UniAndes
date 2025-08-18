@@ -346,7 +346,7 @@ pobxarea <- pob_censal %>%
   left_join(mun_area, by = c("dp", "dpmp","ano","llave"))
 summary(pobxarea)
 
-# Opción 2. Hacer un outer-join (full join) pero SOLO utilizando los departamentos y los códigos de los municipios. De forma tal que se impute la misma área para cualquier año. (Asumiendo que no cambia en el tiepo)
+# Opción 2. Hacer un outer-join (full join) pero SOLO utilizando los departamentos y los códigos de los municipios. De forma tal que se impute la misma área para cualquier año. (Asumiendo que no cambia en el tiempo)
 
 full_join_db <- pob_censal %>%
   full_join(mun_area, by = c("dp", "dpmp")) %>%
@@ -379,10 +379,58 @@ faltantes_en_pob_censal
 - **Respuesta**: Para el left-join la relación es de uno a uno, pues al unir las bases de datos a partir de una llave única (la combinación del código del
 municipio y el año) solo se agrega información para filas que comparten la misma unidad de observación. Ahora bien, para la unión mediante full-join; dado que realizamos la unión de la base de datos a partir de la cardinalidad "uno a muchos" en tanto, al unir únicamente mediante departamento y código de municipio, se asignó el área de los municipios sin importar el año al que se estuviera haciendo referencia. Lo anterior se realizó bajo el supuesto de que el área asignada a cada municipio no varía en función del tiempo.  
 
+## Calculos de interes
+1, Densidad poblacional = Población / MPIO_NAREA.
+```{r Densidad poblacional}
+pobxarea <- full_join_db %>%
+  mutate(densidad = poblacion / mpio_narea)
+
+```
+2. Crecimiento absoluto 1985→2018 y crecimiento porcentual 1985→2018 por municipio.
+```{r Crecimiento poblacional}
+pob_2 <- pobxarea %>%
+  filter(ano %in% c(1985, 2018)) %>%
+  select(dp, dpnom, dpmp, mpio, ano, poblacion) %>%
+  pivot_wider(
+    names_from = ano,
+    values_from = poblacion,
+    names_prefix = "Pob_"
+  ) %>%
+  mutate(
+    crec_absoluto = Pob_2018 - Pob_1985,
+    crec_porcentual = (Pob_2018 - Pob_1985) / Pob_1985 * 100
+  )
+```
+3. Agregación por departamento (DP) para densidad y crecimiento (aclare la definición usada).
+```{r Agregacion}
+agg_departamento <- pobxarea %>%
+  filter(ano %in% c(1985, 2018)) %>%
+  group_by(dp, dpnom, ano) %>%
+  summarise(
+    pob_total = sum(poblacion, na.rm = TRUE),
+    area_total = sum(mpio_narea, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(densidad = pob_total / area_total) %>%
+  pivot_wider(
+    names_from = ano,
+    values_from = c(pob_total, densidad),
+    names_sep = "_"
+  ) %>%
+  mutate(
+    crec_abs = pob_total_2018 - pob_total_1985,
+    crec_pct = (pob_total_2018 - pob_total_1985) / pob_total_1985 * 100
+  )
+```
+
+
 ## Preguntas de indagación 
 
 1. ¿¿Cuáles son los 20 municipios de Colombia con mayor crecimiento poblacional desde 1985? Absoluto y porcentual
 ```{r Pregunta 1 indagación}
+
+
+
 
 ```
 2. ¿Cuáles son los 10 municipios de Colombia con mayor densidad en 1993 y en 2018?
