@@ -333,10 +333,13 @@ Sin embargo, cuando se trata de comparar valores entre años específicos, como 
 
 ## Integración de tablas (join), validaciones y cálculos
 
-1. Identifique y justifique la *unidad de observación* en cada tabla de datos suministrados
+1. Realice la unión de las tablas población (largo) con mun_area.csv
 
 
-```{cruce de los datos}
+```{r cruce de los datos}
+  
+pobxarea <- pob_censal %>%
+  left_join(mun_area, by = c("dp", "dpmp"))
 
 
 ```
