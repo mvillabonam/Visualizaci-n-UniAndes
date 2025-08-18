@@ -51,7 +51,7 @@ suministrados
   donde los datos se guardan en filas y columnas separadas por comas u otro separador. Este 
   formato permite guardar una gran cantidad de información ocupando menos espacio que un excel regular, 
   además de ser compatible por muchos otros tipos de programa para lograr leerlos. Con respecto a los datos
-  que contiene, cada fila describe para un municipio en Colombia, identificado por la llave única dpmp.
+  que contiene, cada fila describe para un municipio en Colombia en un año específico, identificado por la llave única dpmp y la columna ano_creacion.
   Este identificador corresponde al codigo DIVIPOLA, que es el sistema de codificacion de la division 
   politica - administrativa de los departamentos y municipios en el territorio nacional, creado por el DANE.
   Además, presenta información sobre su área, el departamento al que pertenece, el año en que fue creado. 
@@ -59,7 +59,7 @@ suministrados
 - **pob_censal**: 
   A diferencia del archivo anterior, este es un archivo xlsx que correponde al formato regular de los archivos excel.
   Este permite observar los datos desde una hoja de datos, facilitando su visualizacion y manejo, aunque implicando un
-  mayor peso de almacenamiento Cada fila describe para un municipio en Colombia, identificado por la llave única dpmp.
+  mayor peso de almacenamiento Cada fila describe para un municipio en Colombia en un año específico, identificado por la llave única dpmp y la columna ano.
   Esta llave tambien corresponde al codigo unico DIVIPOLA, por lo que desde este punto es importante asegurar que esta
   columna este correctaente leida y con un formato correcto para poder realizar el cruce con la tabla mun-area.
   Además, la tabla tambien presenta información sobre la población de dicho municipio, el departamento al que 
@@ -99,10 +99,9 @@ del ejercicio.
 
 - **Regla 1**: La variable dp debe ser igual para cualquier municipio entre las bases de datos. 
   (Asumiendo que los municipios no se relocalizan sobre otros departamentos).
-- **Regla 2**: La población debe ser mayor a cero para el año en que se reporta.
+- **Regla 2**: La población puede ser mayor o igual a cero para el año en que se reporta.
 - **Regla 3**: El área de un municipio debe siempre ser mayor a cero.
-- **Regla 4**: Las ciudades capitales deben concentrar más población en cada departamento. 
-- **Regla 5**: Los años con censo son: 1985,1993,2005 o 2018.
+- **Regla 4**: Los años con censo son: 1985,1993,2005 o 2018.
 
 
 ## Preparación de los datos 
@@ -171,6 +170,11 @@ rm(duplicados_pob, duplicados_area)
   que preservamos más información sobre los municipios en cada año dado que este tipo de union busca mantener 
   todos los datos de ambas tablas a relacionar, sin darle importancia a que la llave buscada se encuentre en 
   ambas tablas.
+  
+  En nuestro caso, dado que las bases de datos solo comparten los años 1985 y 1993; pero comparten casi todos los       
+  municipios (exceptuando el 94663 solo disponible en población censal) podemos tener una base de datos única que 
+  contemple toda la información disponible en pob_censal y se complemente con información relacionada al área del
+  municipio para los años disponibles. 
   
   Sin embargo, considerando que solo comparten 17 observaciones (Municipios y años comunes)
   podría ser de interés solo preservar la data de población censal y agregar, para los años 
@@ -245,19 +249,135 @@ cat("Llaves en común:", length(llaves_comunes), "\n")
 
 rm(llaves_pob,llaves_area,llaves_comunes,llaves_solo_pob,llave_solo_area)
 ```
-```{r Joins, echo=FALSE, message=FALSE}
-# --- población
-outer_joint <- full_join( mun_area, pob_censal,by = c("dpmp", "dp", "ano", "llave"))
-left_join_result <- left_join(pob_censal, mun_area, by = c("dpmp", "dp", "ano", "llave"))
-```
 
 4. Asegure tipos de datos correctos de acuerdo con las reglas que identificó previamente ( e.g.
 DP, DPMP caracteres que pueden iniciar con “0”; Población entera).
 
-5. Detecte datos faltantes y decida su tratamiento, si es necesario en el contexto de este
-ejercicio. 
-- **Respuesta**: En las bases de datos originales no hay valores vacíos que sea necesario tratar. 
-  Por otra parte, tomando la base 
+```{r Checks por variable, echo=FALSE, message=FALSE}
+# --- población
+pob_neg <- pob_censal %>% filter(poblacion < 0 | is.na(poblacion))
+
+if (nrow(pob_neg) > 0) {
+  cat("⚠ Hay registros con población negativa o NA:\n")
+  print(pob_neg)
+} else {
+  cat("No hay población negativa.\n")
+}
+
+# --- área
+if ("area" %in% names(mun_area)) {
+  area_ceros <- mun_area %>% filter(area <= 0 | is.na(area))
+  if (nrow(area_ceros) > 0) {
+    cat("⚠ Hay registros con área <= 0 o NA:\n")
+    print(area_ceros)
+  } else {
+    cat("No hay áreas menores o iguales a 0.\n")
+  }
+}
+
+# --- tipo de variables (deben coincidir las que son comunes)
+sapply(mun_area, class)
+sapply(pob_censal, class)
+
+```
+
+5. Detecte datos faltantes y decida su tratamiento, si es necesario en el contexto de este ejercicio.
+
+- **Respuesta**: Dado que aún no hemos realizado la unión de las bases de datos; aún no es necesario el manejo de valores faltantes
+
+6. Estandarice nombres (mayúsculas/acentos) en DPNOM y MPIO, si es necesario.
+
+- **Respuesta**: Se estandarizan los municipios y departamentos cómo nombres propios. 
+
+
+```{r Estandarizacion}
+# Departamentos únicos
+unique(pob_censal$dpnom)
+
+# Municipios únicos
+unique(pob_censal$mpio)
+
+# Estandarizacion de las columna dpnom y mpio
+pob_censal$dpnom <- pob_censal$dpnom %>%
+  str_trim() %>%                                # quitar espacios al inicio/final
+  str_to_title() %>%                            # pasar a minúsculas
+  iconv(from = "UTF-8", to = "ASCII//TRANSLIT") # quitar tildes
+
+pob_censal$mpio <- pob_censal$mpio %>%
+  str_trim() %>%
+  str_to_title() %>%
+  iconv(from = "UTF-8", to = "ASCII//TRANSLIT")
+```
+
+
+7. A partir de la estructura larga de la tabla población (AÑO en columna), cree una versión
+ancha con columnas Pob_1985, Pob_1993, Pob_2005, Pob_2018 y guárdela en un nuevo
+archivo.
+
+```{r Tabla ancha}
+pob_censal_ancha <- pob_censal %>%
+  pivot_wider(
+    id_cols = c(dp, dpnom, dpmp, mpio),     
+    names_from = ano,                        
+    values_from = poblacion,                 
+    names_prefix = "Pob_"                    
+  )
+```
+
+8. Explique cuándo trabajar en largo vs. en ancho para las operaciones siguientes.
+
+- **Respuesta**: 
+
+La decisión de trabajar los datos en formato largo (long) o ancho (wide) depende del tipo de operación que se quiera ejecutar. Al realizar una unión con otra tabla no habría mayor diferencia entre usar uno u otro formato, ya que las columnas que se expanden en el formato ancho (en este caso la población) no intervienen en el cruce de las tablas.
+No obstante, para fines de visualización, el formato ancho permite una comparación rápida de los valores entre diferentes años dentro de un mismo municipio o entre municipios distintos.
+
+Por otro lado, al realizar cálculos que requieren relacionar una variable con otra (por ejemplo, población respecto al área), el formato largo suele ser más recomendable, ya que permite trabajar con todos los valores de población independientemente del año en una sola columna. En cambio, en el formato ancho sería necesario tomar cada valor de población por año y repetir la operación para cada columna.
+
+Sin embargo, cuando se trata de comparar valores entre años específicos, como el cálculo del crecimiento poblacional entre dos censos, el formato ancho puede resultar más beneficioso, ya que basta con operar directamente entre las columnas correspondientes a cada año. En formato largo, este tipo de comparación requeriría más pasos intermedios o incluso generar una tabla auxiliar donde se almacenen los resultados.
+
+
+## Integración de tablas (join), validaciones y cálculos
+
+1. Realice la unión de las tablas población (largo) con mun_area.csv
+
+```{r cruce de los datos}
+# Opción 1. Hacer un left-join usando la población poblacional. (Agrega área para 17 municipios)
+pobxarea <- pob_censal %>%
+  left_join(mun_area, by = c("dp", "dpmp","ano","llave"))
+summary(pobxarea)
+
+# Opción 2. Hacer un outer-join (full join) pero SOLO utilizando los departamentos y los códigos de los municipios. De forma tal que se impute la misma área para cualquier año. (Asumiendo que no cambia en el tiepo)
+
+full_join_db <- pob_censal %>%
+  full_join(mun_area, by = c("dp", "dpmp")) %>%
+  select(-ends_with(".y")) %>%
+  rename_with(~ sub("\\.x$", "", .x), ends_with(".x"))
+summary(full_join_db)
+```
+
+
+2. Reporte registros sin correspondencia en ambas direcciones.
+
+- **Respuesta**: 
+
+Se observa que al momento de realizar la unión tipo left a partir de las llaves únicamente coinciden 17 regitros. Lo anterior porque no comparten información sobre el mismo año. Siendo así, los valores faltantes para la columna que describe el área son 4471. 
+
+Sin embargo, si realizamos una unión completa (full join), solo a partir de las columnas departamento y código de municipio (dp y dpmp), asumiendo que el área es constante a través del tiempo, se observa que únicamente 4 registros de área quedan en valor vacío: esto es, la información para todos los años asociada al municipio dpmp 9466 (Mapiripana). 
+
+```{r Valores faltantes}
+faltantes_en_pob_censal <- pob_censal %>%
+  anti_join(mun_area, by = c("dp", "dpmp"))
+
+faltantes_en_area <- mun_area %>%
+  anti_join(pob_censal, by = c("dp", "dpmp"))
+faltantes_en_pob_censal
+
+```
+
+3. Documente la cardinalidad (muchos-a-uno) y cómo evita relaciones muchos-a-muchos.
+
+
+- **Respuesta**: La relación es de uno a uno en tanto no existen llaves repeditas. 
 
 
 

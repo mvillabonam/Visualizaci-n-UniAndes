@@ -9,7 +9,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
-<meta name="author" content="Henry Carvajal (),Julian Delgado () , Mariana Villabona (201816559)" />
+<meta name="author" content="Henry Carvajal (201718787),Julian Delgado (201712798) , Mariana Villabona (201816559)" />
 
 
 <title>Taller 1 - Visualización y Exploración de bases de datos</title>
@@ -351,8 +351,8 @@ display: none;
 
 <h1 class="title toc-ignore">Taller 1 - Visualización y Exploración de
 bases de datos</h1>
-<h4 class="author">Henry Carvajal (),Julian Delgado () , Mariana
-Villabona (201816559)</h4>
+<h4 class="author">Henry Carvajal (201718787),Julian Delgado (201712798)
+, Mariana Villabona (201816559)</h4>
 <h4 class="date">Visualización y Exploración de datos para ciencias
 sociales</h4>
 
@@ -366,12 +366,29 @@ sociales</h4>
 tabla de datos suministrados</li>
 </ol>
 <ul>
-<li><p><strong>mun_area</strong>: Cada fila describe para un municipio
-en Colombia, identificado por la llave única dpmp. Además, presenta
-información sobre su área, el departamento al que pertenece, el año en
-que fue creado.</p></li>
-<li><p><strong>pob_censal</strong>: Cada fila describe para un municipio
-en Colombia, identificado por la llave única dpmp. Además, presenta
+<li><p><strong>mun_area</strong>: Este archivo es un documento en
+formato csv que permite guardar información en un texto plano, donde los
+datos se guardan en filas y columnas separadas por comas u otro
+separador. Este formato permite guardar una gran cantidad de información
+ocupando menos espacio que un excel regular, además de ser compatible
+por muchos otros tipos de programa para lograr leerlos. Con respecto a
+los datos que contiene, cada fila describe para un municipio en Colombia
+en un año específico, identificado por la llave única dpmp y la columna
+ano_creacion. Este identificador corresponde al codigo DIVIPOLA, que es
+el sistema de codificacion de la division politica - administrativa de
+los departamentos y municipios en el territorio nacional, creado por el
+DANE. Además, presenta información sobre su área, el departamento al que
+pertenece, el año en que fue creado.</p></li>
+<li><p><strong>pob_censal</strong>: A diferencia del archivo anterior,
+este es un archivo xlsx que correponde al formato regular de los
+archivos excel. Este permite observar los datos desde una hoja de datos,
+facilitando su visualizacion y manejo, aunque implicando un mayor peso
+de almacenamiento Cada fila describe para un municipio en Colombia en un
+año específico, identificado por la llave única dpmp y la columna ano.
+Esta llave tambien corresponde al codigo unico DIVIPOLA, por lo que
+desde este punto es importante asegurar que esta columna este
+correctaente leida y con un formato correcto para poder realizar el
+cruce con la tabla mun-area. Además, la tabla tambien presenta
 información sobre la población de dicho municipio, el departamento al
 que pertenece y su nombre; así cómo el año al que pertenece la
 información de población.</p></li>
@@ -422,10 +439,23 @@ tipo y formato.</li>
 </tbody>
 </table>
 <ul>
-<li><strong>mun_area</strong>: dp, dpmp son tipo caracter mientras que
-mpio_narea y ano_creación tipo numérico (64 bits).</li>
+<li><strong>mun_area</strong>: dp, dpmp son tipo carácter mientras que
+mpio_narea y ano_creación tipo numérico (64 bits).} Asi mismo, dp, dpmp
+y ano_creación son variables de identificación que guardan
+características especificas del municipio que representan y nos ayudan a
+diferenciarlas de los otros registros. Por otro lado, mpio_narea es una
+variable de medición que permite comparar el área del municipio con
+respecto al de los demás y nos permite clasificar los municipios por su
+tamaño o encontrar territorios con áreas similares.</li>
 <li><strong>pob_censal</strong>: dpnom, mpio son tipo caracter mientras
-que dp, poblacion, dpmp, ano son tipo numérico (64 bits).</li>
+que dp, población, dpmp, ano son tipo numérico (64 bits). De forma
+similar a la tabla anterior, todas las variables con excepcion de
+“poblacion” son de tipo identificación que diferencian cada registro
+entre si, mientras que población hace referencia a una variable numérica
+de medición la cual nos dice cual es el número de habitantes de cada
+municipio en un año determinado, permitiendo analizar su<br />
+distribución demográfica, comparar densidades poblacionales y estudiar
+la evolución de la población en el tiempo.</li>
 </ul>
 <pre class="r"><code>sapply(mun_area, class)</code></pre>
 <pre><code>##           dp         dpmp   mpio_narea ano_creacion 
@@ -435,20 +465,18 @@ que dp, poblacion, dpmp, ano son tipo numérico (64 bits).</li>
 ##   &quot;numeric&quot; &quot;character&quot;   &quot;numeric&quot; &quot;character&quot;   &quot;numeric&quot;   &quot;numeric&quot;</code></pre>
 <ol start="3" style="list-style-type: decimal">
 <li>Proponga al menos 3 reglas mínimas de consistencia para asegurar la
-calidad de los datosde las variables disponibles y que constituyen parte
-de la documentación del ejercicio.</li>
+calidad de los datos de las variables disponibles y que constituyen
+parte de la documentación del ejercicio.</li>
 </ol>
 <ul>
 <li><strong>Regla 1</strong>: La variable dp debe ser igual para
 cualquier municipio entre las bases de datos. (Asumiendo que los
 municipios no se relocalizan sobre otros departamentos).</li>
-<li><strong>Regla 2</strong>: La población debe ser mayor a cero para el
-año en que se reporta.</li>
+<li><strong>Regla 2</strong>: La población puede ser mayor o igual a
+cero para el año en que se reporta.</li>
 <li><strong>Regla 3</strong>: El área de un municipio debe siempre ser
 mayor a cero.</li>
-<li><strong>Regla 4</strong>: Las ciudades capitales deben concentrar
-más población en cada departamento.</li>
-<li><strong>Regla 5</strong>: Los años con censo son: 1985,1993,2005 o
+<li><strong>Regla 4</strong>: Los años con censo son: 1985,1993,2005 o
 2018.</li>
 </ul>
 </div>
@@ -528,22 +556,26 @@ cat(&quot;\n&gt;&gt;&gt; Verificación de duplicados en mun_area &lt;&lt;&lt;\n&
 qué.</li>
 </ol>
 <ul>
-<li><p><strong>Respuesta</strong>: Si no quisieramos perder nada de
+<li><p><strong>Respuesta</strong>: Si no quisiéramos perder nada de
 información debería realizarse un outer join usando la llave creada
-anteriormente; en tanto es la manera en que preservamos más información
-sobre los municipios en cada año.Esto es: dado que las bases de datos
-solo comparten los años 1985 y 1993; pero comparten casi todos los
+anteriormente. El outer join es la manera en la que preservamos más
+información sobre los municipios en cada año dado que este tipo de union
+busca mantener todos los datos de ambas tablas a relacionar, sin darle
+importancia a que la llave buscada se encuentre en ambas tablas.</p>
+<p>En nuestro caso, dado que las bases de datos solo comparten los años
+1985 y 1993; pero comparten casi todos los<br />
 municipios (exceptuando el 94663 solo disponible en población censal)
 podemos tener una base de datos única que contemple toda la información
-disponible en pob_censal y se complente con información relacionada al
+disponible en pob_censal y se complemente con información relacionada al
 área del municipio para los años disponibles.</p>
-<p>Sin embargo, consiiderando que solo comparten 17 observaciones
+<p>Sin embargo, considerando que solo comparten 17 observaciones
 (Municipios y años comunes) podría ser de interés solo preservar la data
 de población censal y agregar, para los años disponibles, el área de los
-17 municipios en común. Lo anterior puede realziarse con un left join o
-right join.</p>
+17 municipios en común. Lo anterior puede realizarse con un left join o
+right join, dependiendo de cual tabla queramos mantener como la
+“principal” o la tabla maestra.</p>
 <p>Además, procuramos preservar el formato long dado que este formato
-favorece la manipulación de la infomración para el análisis
+favorece la manipulación de la información para el análisis
 descriptivo.</p></li>
 </ul>
 <pre><code>## 
@@ -568,11 +600,707 @@ identificó previamente ( e.g. DP, DPMP caracteres que pueden iniciar con
 “0”; Población entera).</li>
 </ol>
 <pre><code>## No hay población negativa.</code></pre>
-<ol start="4" style="list-style-type: decimal">
-<li>Asegure tipos de datos correctos de acuerdo con las reglas que
-identificó previamente ( e.g. DP, DPMP caracteres que pueden iniciar con
-“0”; Población entera).</li>
+<pre><code>##          dp        dpmp  mpio_narea         ano       llave 
+## &quot;character&quot; &quot;character&quot;   &quot;numeric&quot;   &quot;integer&quot; &quot;character&quot;</code></pre>
+<pre><code>##          dp       dpnom        dpmp        mpio         ano   poblacion 
+## &quot;character&quot; &quot;character&quot; &quot;character&quot; &quot;character&quot;   &quot;integer&quot;   &quot;integer&quot; 
+##       llave 
+## &quot;character&quot;</code></pre>
+<ol start="5" style="list-style-type: decimal">
+<li>Detecte datos faltantes y decida su tratamiento, si es necesario en
+el contexto de este ejercicio.</li>
 </ol>
+<ul>
+<li><strong>Respuesta</strong>: Dado que aún no hemos realizado la unión
+de las bases de datos; aún no es necesario el manejo de valores
+faltantes</li>
+</ul>
+<ol start="6" style="list-style-type: decimal">
+<li>Estandarice nombres (mayúsculas/acentos) en DPNOM y MPIO, si es
+necesario.</li>
+</ol>
+<ul>
+<li><strong>Respuesta</strong>: Se estandarizan los municipios y
+departamentos cómo nombres propios.</li>
+</ul>
+<pre class="r"><code># Departamentos únicos
+unique(pob_censal$dpnom)</code></pre>
+<pre><code>##  [1] &quot;antioquia&quot;                  &quot;atlantico&quot;                 
+##  [3] &quot;bogota, d.c.&quot;               &quot;bolivar&quot;                   
+##  [5] &quot;boyaca&quot;                     &quot;caldas&quot;                    
+##  [7] &quot;caqueta&quot;                    &quot;cauca&quot;                     
+##  [9] &quot;cesar&quot;                      &quot;cordoba&quot;                   
+## [11] &quot;cundinamarca&quot;               &quot;choco&quot;                     
+## [13] &quot;huila&quot;                      &quot;la guajira&quot;                
+## [15] &quot;magdalena&quot;                  &quot;meta&quot;                      
+## [17] &quot;narino&quot;                     &quot;norte de santander&quot;        
+## [19] &quot;quindio&quot;                    &quot;risaralda&quot;                 
+## [21] &quot;santander&quot;                  &quot;sucre&quot;                     
+## [23] &quot;tolima&quot;                     &quot;valle del cauca&quot;           
+## [25] &quot;arauca&quot;                     &quot;casanare&quot;                  
+## [27] &quot;putumayo&quot;                   &quot;archipielago de san andres&quot;
+## [29] &quot;amazonas&quot;                   &quot;guainia&quot;                   
+## [31] &quot;guaviare&quot;                   &quot;vaupes&quot;                    
+## [33] &quot;vichada&quot;</code></pre>
+<pre class="r"><code># Municipios únicos
+unique(pob_censal$mpio)</code></pre>
+<pre><code>##    [1] &quot;Medellín&quot;                    &quot;Abejorral&quot;                  
+##    [3] &quot;Abriaquí&quot;                    &quot;Alejandría&quot;                 
+##    [5] &quot;Amagá&quot;                       &quot;Amalfi&quot;                     
+##    [7] &quot;Andes&quot;                       &quot;Angelópolis&quot;                
+##    [9] &quot;Angostura&quot;                   &quot;Anorí&quot;                      
+##   [11] &quot;Santafé de Antioquia&quot;        &quot;Anzá&quot;                       
+##   [13] &quot;Apartadó&quot;                    &quot;Arboletes&quot;                  
+##   [15] &quot;Argelia&quot;                     &quot;Armenia&quot;                    
+##   [17] &quot;Barbosa&quot;                     &quot;Belmira&quot;                    
+##   [19] &quot;Bello&quot;                       &quot;Betania&quot;                    
+##   [21] &quot;Betulia&quot;                     &quot;Ciudad Bolívar&quot;             
+##   [23] &quot;Briceño&quot;                     &quot;Buriticá&quot;                   
+##   [25] &quot;Cáceres&quot;                     &quot;Caicedo&quot;                    
+##   [27] &quot;Caldas&quot;                      &quot;Campamento&quot;                 
+##   [29] &quot;Cañasgordas&quot;                 &quot;Caracolí&quot;                   
+##   [31] &quot;Caramanta&quot;                   &quot;Carepa&quot;                     
+##   [33] &quot;El Carmen de Viboral&quot;        &quot;Carolina&quot;                   
+##   [35] &quot;Caucasia&quot;                    &quot;Chigorodó&quot;                  
+##   [37] &quot;Cisneros&quot;                    &quot;Cocorná&quot;                    
+##   [39] &quot;Concepción&quot;                  &quot;Concordia&quot;                  
+##   [41] &quot;Copacabana&quot;                  &quot;Dabeiba&quot;                    
+##   [43] &quot;Donmatías&quot;                   &quot;Ebéjico&quot;                    
+##   [45] &quot;El Bagre&quot;                    &quot;Entrerríos&quot;                 
+##   [47] &quot;Envigado&quot;                    &quot;Fredonia&quot;                   
+##   [49] &quot;Frontino&quot;                    &quot;Giraldo&quot;                    
+##   [51] &quot;Girardota&quot;                   &quot;Gómez Plata&quot;                
+##   [53] &quot;Granada&quot;                     &quot;Guadalupe&quot;                  
+##   [55] &quot;Guarne&quot;                      &quot;Guatapé&quot;                    
+##   [57] &quot;Heliconia&quot;                   &quot;Hispania&quot;                   
+##   [59] &quot;Itagüí&quot;                      &quot;Ituango&quot;                    
+##   [61] &quot;Jardín&quot;                      &quot;Jericó&quot;                     
+##   [63] &quot;La Ceja&quot;                     &quot;La Estrella&quot;                
+##   [65] &quot;La Pintada&quot;                  &quot;La Unión&quot;                   
+##   [67] &quot;Liborina&quot;                    &quot;Maceo&quot;                      
+##   [69] &quot;Marinilla&quot;                   &quot;Montebello&quot;                 
+##   [71] &quot;Murindó&quot;                     &quot;Mutatá&quot;                     
+##   [73] &quot;Nariño&quot;                      &quot;Necoclí&quot;                    
+##   [75] &quot;Nechí&quot;                       &quot;Olaya&quot;                      
+##   [77] &quot;Peñol&quot;                       &quot;Peque&quot;                      
+##   [79] &quot;Pueblorrico&quot;                 &quot;Puerto Berrío&quot;              
+##   [81] &quot;Puerto Nare&quot;                 &quot;Puerto Triunfo&quot;             
+##   [83] &quot;Remedios&quot;                    &quot;Retiro&quot;                     
+##   [85] &quot;Rionegro&quot;                    &quot;Sabanalarga&quot;                
+##   [87] &quot;Sabaneta&quot;                    &quot;Salgar&quot;                     
+##   [89] &quot;San Andrés de Cuerquía&quot;      &quot;San Carlos&quot;                 
+##   [91] &quot;San Francisco&quot;               &quot;San Jerónimo&quot;               
+##   [93] &quot;San José de La Montaña&quot;      &quot;San Juan de Urabá&quot;          
+##   [95] &quot;San Luis&quot;                    &quot;San Pedro de Los Milagros&quot;  
+##   [97] &quot;San Pedro de Urabá&quot;          &quot;San Rafael&quot;                 
+##   [99] &quot;San Roque&quot;                   &quot;San Vicente&quot;                
+##  [101] &quot;Santa Bárbara&quot;               &quot;Santa Rosa de Osos&quot;         
+##  [103] &quot;Santo Domingo&quot;               &quot;El Santuario&quot;               
+##  [105] &quot;Segovia&quot;                     &quot;Sonsón&quot;                     
+##  [107] &quot;Sopetrán&quot;                    &quot;Támesis&quot;                    
+##  [109] &quot;Tarazá&quot;                      &quot;Tarso&quot;                      
+##  [111] &quot;Titiribí&quot;                    &quot;Toledo&quot;                     
+##  [113] &quot;Turbo&quot;                       &quot;Uramita&quot;                    
+##  [115] &quot;Urrao&quot;                       &quot;Valdivia&quot;                   
+##  [117] &quot;Valparaíso&quot;                  &quot;Vegachí&quot;                    
+##  [119] &quot;Venecia&quot;                     &quot;Vigía del Fuerte&quot;           
+##  [121] &quot;Yalí&quot;                        &quot;Yarumal&quot;                    
+##  [123] &quot;Yolombó&quot;                     &quot;Yondó&quot;                      
+##  [125] &quot;Zaragoza&quot;                    &quot;Barranquilla&quot;               
+##  [127] &quot;Baranoa&quot;                     &quot;Campo de La Cruz&quot;           
+##  [129] &quot;Candelaria&quot;                  &quot;Galapa&quot;                     
+##  [131] &quot;Juan de Acosta&quot;              &quot;Luruaco&quot;                    
+##  [133] &quot;Malambo&quot;                     &quot;Manatí&quot;                     
+##  [135] &quot;Palmar de Varela&quot;            &quot;Piojó&quot;                      
+##  [137] &quot;Polonuevo&quot;                   &quot;Ponedera&quot;                   
+##  [139] &quot;Puerto Colombia&quot;             &quot;Repelón&quot;                    
+##  [141] &quot;Sabanagrande&quot;                &quot;Santa Lucía&quot;                
+##  [143] &quot;Santo Tomás&quot;                 &quot;Soledad&quot;                    
+##  [145] &quot;Suan&quot;                        &quot;Tubará&quot;                     
+##  [147] &quot;Usiacurí&quot;                    &quot;Bogotá, D.C.&quot;               
+##  [149] &quot;Cartagena de Indias&quot;         &quot;Achí&quot;                       
+##  [151] &quot;Altos del Rosario&quot;           &quot;Arenal&quot;                     
+##  [153] &quot;Arjona&quot;                      &quot;Arroyohondo&quot;                
+##  [155] &quot;Barranco de Loba&quot;            &quot;Calamar&quot;                    
+##  [157] &quot;Cantagallo&quot;                  &quot;Cicuco&quot;                     
+##  [159] &quot;Córdoba&quot;                     &quot;Clemencia&quot;                  
+##  [161] &quot;El Carmen de Bolívar&quot;        &quot;El Guamo&quot;                   
+##  [163] &quot;El Peñón&quot;                    &quot;Hatillo de Loba&quot;            
+##  [165] &quot;Magangué&quot;                    &quot;Mahates&quot;                    
+##  [167] &quot;Margarita&quot;                   &quot;María La Baja&quot;              
+##  [169] &quot;Montecristo&quot;                 &quot;Mompós&quot;                     
+##  [171] &quot;Morales&quot;                     &quot;Norosí&quot;                     
+##  [173] &quot;Pinillos&quot;                    &quot;Regidor&quot;                    
+##  [175] &quot;Río Viejo&quot;                   &quot;San Cristóbal&quot;              
+##  [177] &quot;San Estanislao&quot;              &quot;San Fernando&quot;               
+##  [179] &quot;San Jacinto&quot;                 &quot;San Jacinto del Cauca&quot;      
+##  [181] &quot;San Juan Nepomuceno&quot;         &quot;San Martín de Loba&quot;         
+##  [183] &quot;San Pablo&quot;                   &quot;Santa Catalina&quot;             
+##  [185] &quot;Santa Rosa&quot;                  &quot;Santa Rosa del Sur&quot;         
+##  [187] &quot;Simití&quot;                      &quot;Soplaviento&quot;                
+##  [189] &quot;Talaigua Nuevo&quot;              &quot;Tiquisio&quot;                   
+##  [191] &quot;Turbaco&quot;                     &quot;Turbaná&quot;                    
+##  [193] &quot;Villanueva&quot;                  &quot;Zambrano&quot;                   
+##  [195] &quot;Tunja&quot;                       &quot;Almeida&quot;                    
+##  [197] &quot;Aquitania&quot;                   &quot;Arcabuco&quot;                   
+##  [199] &quot;Belén&quot;                       &quot;Berbeo&quot;                     
+##  [201] &quot;Betéitiva&quot;                   &quot;Boavita&quot;                    
+##  [203] &quot;Boyacá&quot;                      &quot;Buenavista&quot;                 
+##  [205] &quot;Busbanzá&quot;                    &quot;Campohermoso&quot;               
+##  [207] &quot;Cerinza&quot;                     &quot;Chinavita&quot;                  
+##  [209] &quot;Chiquinquirá&quot;                &quot;Chiscas&quot;                    
+##  [211] &quot;Chita&quot;                       &quot;Chitaraque&quot;                 
+##  [213] &quot;Chivatá&quot;                     &quot;Ciénega&quot;                    
+##  [215] &quot;Cómbita&quot;                     &quot;Coper&quot;                      
+##  [217] &quot;Corrales&quot;                    &quot;Covarachía&quot;                 
+##  [219] &quot;Cubará&quot;                      &quot;Cucaita&quot;                    
+##  [221] &quot;Cuítiva&quot;                     &quot;Chíquiza&quot;                   
+##  [223] &quot;Chivor&quot;                      &quot;Duitama&quot;                    
+##  [225] &quot;El Cocuy&quot;                    &quot;El Espino&quot;                  
+##  [227] &quot;Firavitoba&quot;                  &quot;Floresta&quot;                   
+##  [229] &quot;Gachantivá&quot;                  &quot;Gámeza&quot;                     
+##  [231] &quot;Garagoa&quot;                     &quot;Guacamayas&quot;                 
+##  [233] &quot;Guateque&quot;                    &quot;Guayatá&quot;                    
+##  [235] &quot;Güicán de La Sierra&quot;         &quot;Iza&quot;                        
+##  [237] &quot;Jenesano&quot;                    &quot;Labranzagrande&quot;             
+##  [239] &quot;La Capilla&quot;                  &quot;La Victoria&quot;                
+##  [241] &quot;La Uvita&quot;                    &quot;Villa de Leyva&quot;             
+##  [243] &quot;Macanal&quot;                     &quot;Maripí&quot;                     
+##  [245] &quot;Miraflores&quot;                  &quot;Mongua&quot;                     
+##  [247] &quot;Monguí&quot;                      &quot;Moniquirá&quot;                  
+##  [249] &quot;Motavita&quot;                    &quot;Muzo&quot;                       
+##  [251] &quot;Nobsa&quot;                       &quot;Nuevo Colón&quot;                
+##  [253] &quot;Oicatá&quot;                      &quot;Otanche&quot;                    
+##  [255] &quot;Pachavita&quot;                   &quot;Páez&quot;                       
+##  [257] &quot;Paipa&quot;                       &quot;Pajarito&quot;                   
+##  [259] &quot;Panqueba&quot;                    &quot;Pauna&quot;                      
+##  [261] &quot;Paya&quot;                        &quot;Paz de Río&quot;                 
+##  [263] &quot;Pesca&quot;                       &quot;Pisba&quot;                      
+##  [265] &quot;Puerto Boyacá&quot;               &quot;Quípama&quot;                    
+##  [267] &quot;Ramiriquí&quot;                   &quot;Ráquira&quot;                    
+##  [269] &quot;Rondón&quot;                      &quot;Saboyá&quot;                     
+##  [271] &quot;Sáchica&quot;                     &quot;Samacá&quot;                     
+##  [273] &quot;San Eduardo&quot;                 &quot;San José de Pare&quot;           
+##  [275] &quot;San Luis de Gaceno&quot;          &quot;San Mateo&quot;                  
+##  [277] &quot;San Miguel de Sema&quot;          &quot;San Pablo de Borbur&quot;        
+##  [279] &quot;Santana&quot;                     &quot;Santa María&quot;                
+##  [281] &quot;Santa Rosa de Viterbo&quot;       &quot;Santa Sofía&quot;                
+##  [283] &quot;Sativanorte&quot;                 &quot;Sativasur&quot;                  
+##  [285] &quot;Siachoque&quot;                   &quot;Soatá&quot;                      
+##  [287] &quot;Socotá&quot;                      &quot;Socha&quot;                      
+##  [289] &quot;Sogamoso&quot;                    &quot;Somondoco&quot;                  
+##  [291] &quot;Sora&quot;                        &quot;Sotaquirá&quot;                  
+##  [293] &quot;Soracá&quot;                      &quot;Susacón&quot;                    
+##  [295] &quot;Sutamarchán&quot;                 &quot;Sutatenza&quot;                  
+##  [297] &quot;Tasco&quot;                       &quot;Tenza&quot;                      
+##  [299] &quot;Tibaná&quot;                      &quot;Tibasosa&quot;                   
+##  [301] &quot;Tinjacá&quot;                     &quot;Tipacoque&quot;                  
+##  [303] &quot;Toca&quot;                        &quot;Togüí&quot;                      
+##  [305] &quot;Tópaga&quot;                      &quot;Tota&quot;                       
+##  [307] &quot;Tununguá&quot;                    &quot;Turmequé&quot;                   
+##  [309] &quot;Tuta&quot;                        &quot;Tutazá&quot;                     
+##  [311] &quot;Úmbita&quot;                      &quot;Ventaquemada&quot;               
+##  [313] &quot;Viracachá&quot;                   &quot;Zetaquira&quot;                  
+##  [315] &quot;Manizales&quot;                   &quot;Aguadas&quot;                    
+##  [317] &quot;Anserma&quot;                     &quot;Aranzazu&quot;                   
+##  [319] &quot;Belalcázar&quot;                  &quot;Chinchiná&quot;                  
+##  [321] &quot;Filadelfia&quot;                  &quot;La Dorada&quot;                  
+##  [323] &quot;La Merced&quot;                   &quot;Manzanares&quot;                 
+##  [325] &quot;Marmato&quot;                     &quot;Marquetalia&quot;                
+##  [327] &quot;Marulanda&quot;                   &quot;Neira&quot;                      
+##  [329] &quot;Norcasia&quot;                    &quot;Pácora&quot;                     
+##  [331] &quot;Palestina&quot;                   &quot;Pensilvania&quot;                
+##  [333] &quot;Riosucio&quot;                    &quot;Risaralda&quot;                  
+##  [335] &quot;Salamina&quot;                    &quot;Samaná&quot;                     
+##  [337] &quot;San José&quot;                    &quot;Supía&quot;                      
+##  [339] &quot;Victoria&quot;                    &quot;Villamaría&quot;                 
+##  [341] &quot;Viterbo&quot;                     &quot;Florencia&quot;                  
+##  [343] &quot;Albania&quot;                     &quot;Belén de Los Andaquíes&quot;     
+##  [345] &quot;Cartagena del Chairá&quot;        &quot;Curillo&quot;                    
+##  [347] &quot;El Doncello&quot;                 &quot;El Paujíl&quot;                  
+##  [349] &quot;La Montañita&quot;                &quot;Milán&quot;                      
+##  [351] &quot;Morelia&quot;                     &quot;Puerto Rico&quot;                
+##  [353] &quot;San José del Fragua&quot;         &quot;San Vicente del Caguán&quot;     
+##  [355] &quot;Solano&quot;                      &quot;Solita&quot;                     
+##  [357] &quot;Popayán&quot;                     &quot;Almaguer&quot;                   
+##  [359] &quot;Balboa&quot;                      &quot;Bolívar&quot;                    
+##  [361] &quot;Buenos Aires&quot;                &quot;Cajibío&quot;                    
+##  [363] &quot;Caldono&quot;                     &quot;Caloto&quot;                     
+##  [365] &quot;Corinto&quot;                     &quot;El Tambo&quot;                   
+##  [367] &quot;Guachené&quot;                    &quot;Guapi&quot;                      
+##  [369] &quot;Inzá&quot;                        &quot;Jambaló&quot;                    
+##  [371] &quot;La Sierra&quot;                   &quot;La Vega&quot;                    
+##  [373] &quot;López de Micay&quot;              &quot;Mercaderes&quot;                 
+##  [375] &quot;Miranda&quot;                     &quot;Padilla&quot;                    
+##  [377] &quot;Patía&quot;                       &quot;Piamonte&quot;                   
+##  [379] &quot;Piendamó - Tunía&quot;            &quot;Puerto Tejada&quot;              
+##  [381] &quot;Puracé&quot;                      &quot;Rosas&quot;                      
+##  [383] &quot;San Sebastián&quot;               &quot;Santander de Quilichao&quot;     
+##  [385] &quot;Silvia&quot;                      &quot;Sotará Paispamba&quot;           
+##  [387] &quot;Suárez&quot;                      &quot;Sucre&quot;                      
+##  [389] &quot;Timbío&quot;                      &quot;Timbiquí&quot;                   
+##  [391] &quot;Toribío&quot;                     &quot;Totoró&quot;                     
+##  [393] &quot;Villa Rica&quot;                  &quot;Valledupar&quot;                 
+##  [395] &quot;Aguachica&quot;                   &quot;Agustín Codazzi&quot;            
+##  [397] &quot;Astrea&quot;                      &quot;Becerril&quot;                   
+##  [399] &quot;Bosconia&quot;                    &quot;Chimichagua&quot;                
+##  [401] &quot;Chiriguaná&quot;                  &quot;Curumaní&quot;                   
+##  [403] &quot;El Copey&quot;                    &quot;El Paso&quot;                    
+##  [405] &quot;Gamarra&quot;                     &quot;González&quot;                   
+##  [407] &quot;La Gloria&quot;                   &quot;La Jagua de Ibirico&quot;        
+##  [409] &quot;Manaure Balcón del Cesar&quot;    &quot;Pailitas&quot;                   
+##  [411] &quot;Pelaya&quot;                      &quot;Pueblo Bello&quot;               
+##  [413] &quot;Río de Oro&quot;                  &quot;La Paz&quot;                     
+##  [415] &quot;San Alberto&quot;                 &quot;San Diego&quot;                  
+##  [417] &quot;San Martín&quot;                  &quot;Tamalameque&quot;                
+##  [419] &quot;Montería&quot;                    &quot;Ayapel&quot;                     
+##  [421] &quot;Canalete&quot;                    &quot;Cereté&quot;                     
+##  [423] &quot;Chimá&quot;                       &quot;Chinú&quot;                      
+##  [425] &quot;Ciénaga de Oro&quot;              &quot;Cotorra&quot;                    
+##  [427] &quot;La Apartada&quot;                 &quot;Lorica&quot;                     
+##  [429] &quot;Los Córdobas&quot;                &quot;Momil&quot;                      
+##  [431] &quot;Montelíbano&quot;                 &quot;Moñitos&quot;                    
+##  [433] &quot;Planeta Rica&quot;                &quot;Pueblo Nuevo&quot;               
+##  [435] &quot;Puerto Escondido&quot;            &quot;Puerto Libertador&quot;          
+##  [437] &quot;Purísima de La Concepción&quot;   &quot;Sahagún&quot;                    
+##  [439] &quot;San Andrés Sotavento&quot;        &quot;San Antero&quot;                 
+##  [441] &quot;San Bernardo del Viento&quot;     &quot;San José de Uré&quot;            
+##  [443] &quot;San Pelayo&quot;                  &quot;Tierralta&quot;                  
+##  [445] &quot;Tuchín&quot;                      &quot;Valencia&quot;                   
+##  [447] &quot;Agua de Dios&quot;                &quot;Albán&quot;                      
+##  [449] &quot;Anapoima&quot;                    &quot;Anolaima&quot;                   
+##  [451] &quot;Arbeláez&quot;                    &quot;Beltrán&quot;                    
+##  [453] &quot;Bituima&quot;                     &quot;Bojacá&quot;                     
+##  [455] &quot;Cabrera&quot;                     &quot;Cachipay&quot;                   
+##  [457] &quot;Cajicá&quot;                      &quot;Caparrapí&quot;                  
+##  [459] &quot;Cáqueza&quot;                     &quot;Carmen de Carupa&quot;           
+##  [461] &quot;Chaguaní&quot;                    &quot;Chía&quot;                       
+##  [463] &quot;Chipaque&quot;                    &quot;Choachí&quot;                    
+##  [465] &quot;Chocontá&quot;                    &quot;Cogua&quot;                      
+##  [467] &quot;Cota&quot;                        &quot;Cucunubá&quot;                   
+##  [469] &quot;El Colegio&quot;                  &quot;El Rosal&quot;                   
+##  [471] &quot;Facatativá&quot;                  &quot;Fómeque&quot;                    
+##  [473] &quot;Fosca&quot;                       &quot;Funza&quot;                      
+##  [475] &quot;Fúquene&quot;                     &quot;Fusagasugá&quot;                 
+##  [477] &quot;Gachalá&quot;                     &quot;Gachancipá&quot;                 
+##  [479] &quot;Gachetá&quot;                     &quot;Gama&quot;                       
+##  [481] &quot;Girardot&quot;                    &quot;Guachetá&quot;                   
+##  [483] &quot;Guaduas&quot;                     &quot;Guasca&quot;                     
+##  [485] &quot;Guataquí&quot;                    &quot;Guatavita&quot;                  
+##  [487] &quot;Guayabal de Síquima&quot;         &quot;Guayabetal&quot;                 
+##  [489] &quot;Gutiérrez&quot;                   &quot;Jerusalén&quot;                  
+##  [491] &quot;Junín&quot;                       &quot;La Calera&quot;                  
+##  [493] &quot;La Mesa&quot;                     &quot;La Palma&quot;                   
+##  [495] &quot;La Peña&quot;                     &quot;Lenguazaque&quot;                
+##  [497] &quot;Machetá&quot;                     &quot;Madrid&quot;                     
+##  [499] &quot;Manta&quot;                       &quot;Medina&quot;                     
+##  [501] &quot;Mosquera&quot;                    &quot;Nemocón&quot;                    
+##  [503] &quot;Nilo&quot;                        &quot;Nimaima&quot;                    
+##  [505] &quot;Nocaima&quot;                     &quot;Pacho&quot;                      
+##  [507] &quot;Paime&quot;                       &quot;Pandi&quot;                      
+##  [509] &quot;Paratebueno&quot;                 &quot;Pasca&quot;                      
+##  [511] &quot;Puerto Salgar&quot;               &quot;Pulí&quot;                       
+##  [513] &quot;Quebradanegra&quot;               &quot;Quetame&quot;                    
+##  [515] &quot;Quipile&quot;                     &quot;Apulo&quot;                      
+##  [517] &quot;Ricaurte&quot;                    &quot;San Antonio del Tequendama&quot; 
+##  [519] &quot;San Bernardo&quot;                &quot;San Cayetano&quot;               
+##  [521] &quot;San Juan de Rioseco&quot;         &quot;Sasaima&quot;                    
+##  [523] &quot;Sesquilé&quot;                    &quot;Sibaté&quot;                     
+##  [525] &quot;Silvania&quot;                    &quot;Simijaca&quot;                   
+##  [527] &quot;Soacha&quot;                      &quot;Sopó&quot;                       
+##  [529] &quot;Subachoque&quot;                  &quot;Suesca&quot;                     
+##  [531] &quot;Supatá&quot;                      &quot;Susa&quot;                       
+##  [533] &quot;Sutatausa&quot;                   &quot;Tabio&quot;                      
+##  [535] &quot;Tausa&quot;                       &quot;Tena&quot;                       
+##  [537] &quot;Tenjo&quot;                       &quot;Tibacuy&quot;                    
+##  [539] &quot;Tibirita&quot;                    &quot;Tocaima&quot;                    
+##  [541] &quot;Tocancipá&quot;                   &quot;Topaipí&quot;                    
+##  [543] &quot;Ubalá&quot;                       &quot;Ubaque&quot;                     
+##  [545] &quot;Villa de San Diego de Ubaté&quot; &quot;Une&quot;                        
+##  [547] &quot;Útica&quot;                       &quot;Vergara&quot;                    
+##  [549] &quot;Vianí&quot;                       &quot;Villagómez&quot;                 
+##  [551] &quot;Villapinzón&quot;                 &quot;Villeta&quot;                    
+##  [553] &quot;Viotá&quot;                       &quot;Yacopí&quot;                     
+##  [555] &quot;Zipacón&quot;                     &quot;Zipaquirá&quot;                  
+##  [557] &quot;Quibdó&quot;                      &quot;Acandí&quot;                     
+##  [559] &quot;Alto Baudó&quot;                  &quot;Atrato&quot;                     
+##  [561] &quot;Bagadó&quot;                      &quot;Bahía Solano&quot;               
+##  [563] &quot;Bajo Baudó&quot;                  &quot;Bojayá&quot;                     
+##  [565] &quot;El Cantón del San Pablo&quot;     &quot;Carmen del Darién&quot;          
+##  [567] &quot;Cértegui&quot;                    &quot;Condoto&quot;                    
+##  [569] &quot;El Carmen de Atrato&quot;         &quot;El Litoral del San Juan&quot;    
+##  [571] &quot;Istmina&quot;                     &quot;Juradó&quot;                     
+##  [573] &quot;Lloró&quot;                       &quot;Medio Atrato&quot;               
+##  [575] &quot;Medio Baudó&quot;                 &quot;Medio San Juan&quot;             
+##  [577] &quot;Nóvita&quot;                      &quot;Nuquí&quot;                      
+##  [579] &quot;Río Iró&quot;                     &quot;Río Quito&quot;                  
+##  [581] &quot;San José del Palmar&quot;         &quot;Sipí&quot;                       
+##  [583] &quot;Tadó&quot;                        &quot;Unguía&quot;                     
+##  [585] &quot;Unión Panamericana&quot;          &quot;Neiva&quot;                      
+##  [587] &quot;Acevedo&quot;                     &quot;Agrado&quot;                     
+##  [589] &quot;Aipe&quot;                        &quot;Algeciras&quot;                  
+##  [591] &quot;Altamira&quot;                    &quot;Baraya&quot;                     
+##  [593] &quot;Campoalegre&quot;                 &quot;Colombia&quot;                   
+##  [595] &quot;Elías&quot;                       &quot;Garzón&quot;                     
+##  [597] &quot;Gigante&quot;                     &quot;Hobo&quot;                       
+##  [599] &quot;Íquira&quot;                      &quot;Isnos&quot;                      
+##  [601] &quot;La Argentina&quot;                &quot;La Plata&quot;                   
+##  [603] &quot;Nátaga&quot;                      &quot;Oporapa&quot;                    
+##  [605] &quot;Paicol&quot;                      &quot;Palermo&quot;                    
+##  [607] &quot;Pital&quot;                       &quot;Pitalito&quot;                   
+##  [609] &quot;Rivera&quot;                      &quot;Saladoblanco&quot;               
+##  [611] &quot;San Agustín&quot;                 &quot;Suaza&quot;                      
+##  [613] &quot;Tarqui&quot;                      &quot;Tesalia&quot;                    
+##  [615] &quot;Tello&quot;                       &quot;Teruel&quot;                     
+##  [617] &quot;Timaná&quot;                      &quot;Villavieja&quot;                 
+##  [619] &quot;Yaguará&quot;                     &quot;Riohacha&quot;                   
+##  [621] &quot;Barrancas&quot;                   &quot;Dibulla&quot;                    
+##  [623] &quot;Distracción&quot;                 &quot;El Molino&quot;                  
+##  [625] &quot;Fonseca&quot;                     &quot;Hatonuevo&quot;                  
+##  [627] &quot;La Jagua del Pilar&quot;          &quot;Maicao&quot;                     
+##  [629] &quot;Manaure&quot;                     &quot;San Juan del Cesar&quot;         
+##  [631] &quot;Uribia&quot;                      &quot;Urumita&quot;                    
+##  [633] &quot;Santa Marta&quot;                 &quot;Algarrobo&quot;                  
+##  [635] &quot;Aracataca&quot;                   &quot;Ariguaní&quot;                   
+##  [637] &quot;Cerro de San Antonio&quot;        &quot;Chibolo&quot;                    
+##  [639] &quot;Ciénaga&quot;                     &quot;El Banco&quot;                   
+##  [641] &quot;El Piñón&quot;                    &quot;El Retén&quot;                   
+##  [643] &quot;Fundación&quot;                   &quot;Guamal&quot;                     
+##  [645] &quot;Nueva Granada&quot;               &quot;Pedraza&quot;                    
+##  [647] &quot;Pijiño del Carmen&quot;           &quot;Pivijay&quot;                    
+##  [649] &quot;Plato&quot;                       &quot;Puebloviejo&quot;                
+##  [651] &quot;Remolino&quot;                    &quot;Sabanas de San Ángel&quot;       
+##  [653] &quot;San Sebastián de Buenavista&quot; &quot;San Zenón&quot;                  
+##  [655] &quot;Santa Ana&quot;                   &quot;Santa Bárbara de Pinto&quot;     
+##  [657] &quot;Sitionuevo&quot;                  &quot;Tenerife&quot;                   
+##  [659] &quot;Zapayán&quot;                     &quot;Zona Bananera&quot;              
+##  [661] &quot;Villavicencio&quot;               &quot;Acacías&quot;                    
+##  [663] &quot;Barranca de Upía&quot;            &quot;Cabuyaro&quot;                   
+##  [665] &quot;Castilla la Nueva&quot;           &quot;Cubarral&quot;                   
+##  [667] &quot;Cumaral&quot;                     &quot;El Calvario&quot;                
+##  [669] &quot;El Castillo&quot;                 &quot;El Dorado&quot;                  
+##  [671] &quot;Fuente de Oro&quot;               &quot;Mapiripán&quot;                  
+##  [673] &quot;Mesetas&quot;                     &quot;La Macarena&quot;                
+##  [675] &quot;Uribe&quot;                       &quot;Lejanías&quot;                   
+##  [677] &quot;Puerto Concordia&quot;            &quot;Puerto Gaitán&quot;              
+##  [679] &quot;Puerto López&quot;                &quot;Puerto Lleras&quot;              
+##  [681] &quot;Restrepo&quot;                    &quot;San Carlos de Guaroa&quot;       
+##  [683] &quot;San Juan de Arama&quot;           &quot;San Juanito&quot;                
+##  [685] &quot;Vistahermosa&quot;                &quot;Pasto&quot;                      
+##  [687] &quot;Aldana&quot;                      &quot;Ancuya&quot;                     
+##  [689] &quot;Arboleda&quot;                    &quot;Barbacoas&quot;                  
+##  [691] &quot;Buesaco&quot;                     &quot;Colón&quot;                      
+##  [693] &quot;Consacá&quot;                     &quot;Contadero&quot;                  
+##  [695] &quot;Cuaspud Carlosama&quot;           &quot;Cumbal&quot;                     
+##  [697] &quot;Cumbitara&quot;                   &quot;Chachagüí&quot;                  
+##  [699] &quot;El Charco&quot;                   &quot;El Peñol&quot;                   
+##  [701] &quot;El Rosario&quot;                  &quot;El Tablón de Gómez&quot;         
+##  [703] &quot;Funes&quot;                       &quot;Guachucal&quot;                  
+##  [705] &quot;Guaitarilla&quot;                 &quot;Gualmatán&quot;                  
+##  [707] &quot;Iles&quot;                        &quot;Imués&quot;                      
+##  [709] &quot;Ipiales&quot;                     &quot;La Cruz&quot;                    
+##  [711] &quot;La Florida&quot;                  &quot;La Llanada&quot;                 
+##  [713] &quot;La Tola&quot;                     &quot;Leiva&quot;                      
+##  [715] &quot;Linares&quot;                     &quot;Los Andes&quot;                  
+##  [717] &quot;Magüí&quot;                       &quot;Mallama&quot;                    
+##  [719] &quot;Olaya Herrera&quot;               &quot;Ospina&quot;                     
+##  [721] &quot;Francisco Pizarro&quot;           &quot;Policarpa&quot;                  
+##  [723] &quot;Potosí&quot;                      &quot;Providencia&quot;                
+##  [725] &quot;Puerres&quot;                     &quot;Pupiales&quot;                   
+##  [727] &quot;Roberto Payán&quot;               &quot;Samaniego&quot;                  
+##  [729] &quot;Sandoná&quot;                     &quot;San Lorenzo&quot;                
+##  [731] &quot;San Pedro de Cartago&quot;        &quot;Santacruz&quot;                  
+##  [733] &quot;Sapuyes&quot;                     &quot;Taminango&quot;                  
+##  [735] &quot;Tangua&quot;                      &quot;San Andrés de Tumaco&quot;       
+##  [737] &quot;Túquerres&quot;                   &quot;Yacuanquer&quot;                 
+##  [739] &quot;San José de Cúcuta&quot;          &quot;Ábrego&quot;                     
+##  [741] &quot;Arboledas&quot;                   &quot;Bochalema&quot;                  
+##  [743] &quot;Bucarasica&quot;                  &quot;Cácota&quot;                     
+##  [745] &quot;Cáchira&quot;                     &quot;Chinácota&quot;                  
+##  [747] &quot;Chitagá&quot;                     &quot;Convención&quot;                 
+##  [749] &quot;Cucutilla&quot;                   &quot;Durania&quot;                    
+##  [751] &quot;El Carmen&quot;                   &quot;El Tarra&quot;                   
+##  [753] &quot;El Zulia&quot;                    &quot;Gramalote&quot;                  
+##  [755] &quot;Hacarí&quot;                      &quot;Herrán&quot;                     
+##  [757] &quot;Labateca&quot;                    &quot;La Esperanza&quot;               
+##  [759] &quot;La Playa&quot;                    &quot;Los Patios&quot;                 
+##  [761] &quot;Lourdes&quot;                     &quot;Mutiscua&quot;                   
+##  [763] &quot;Ocaña&quot;                       &quot;Pamplona&quot;                   
+##  [765] &quot;Pamplonita&quot;                  &quot;Puerto Santander&quot;           
+##  [767] &quot;Ragonvalia&quot;                  &quot;Salazar&quot;                    
+##  [769] &quot;San Calixto&quot;                 &quot;Santiago&quot;                   
+##  [771] &quot;Sardinata&quot;                   &quot;Silos&quot;                      
+##  [773] &quot;Teorama&quot;                     &quot;Tibú&quot;                       
+##  [775] &quot;Villa Caro&quot;                  &quot;Villa del Rosario&quot;          
+##  [777] &quot;Calarcá&quot;                     &quot;Circasia&quot;                   
+##  [779] &quot;Filandia&quot;                    &quot;Génova&quot;                     
+##  [781] &quot;La Tebaida&quot;                  &quot;Montenegro&quot;                 
+##  [783] &quot;Pijao&quot;                       &quot;Quimbaya&quot;                   
+##  [785] &quot;Salento&quot;                     &quot;Pereira&quot;                    
+##  [787] &quot;Apía&quot;                        &quot;Belén de Umbría&quot;            
+##  [789] &quot;Dosquebradas&quot;                &quot;Guática&quot;                    
+##  [791] &quot;La Celia&quot;                    &quot;La Virginia&quot;                
+##  [793] &quot;Marsella&quot;                    &quot;Mistrató&quot;                   
+##  [795] &quot;Pueblo Rico&quot;                 &quot;Quinchía&quot;                   
+##  [797] &quot;Santa Rosa de Cabal&quot;         &quot;Santuario&quot;                  
+##  [799] &quot;Bucaramanga&quot;                 &quot;Aguada&quot;                     
+##  [801] &quot;Aratoca&quot;                     &quot;Barichara&quot;                  
+##  [803] &quot;Barrancabermeja&quot;             &quot;California&quot;                 
+##  [805] &quot;Capitanejo&quot;                  &quot;Carcasí&quot;                    
+##  [807] &quot;Cepitá&quot;                      &quot;Cerrito&quot;                    
+##  [809] &quot;Charalá&quot;                     &quot;Charta&quot;                     
+##  [811] &quot;Chipatá&quot;                     &quot;Cimitarra&quot;                  
+##  [813] &quot;Confines&quot;                    &quot;Contratación&quot;               
+##  [815] &quot;Coromoro&quot;                    &quot;Curití&quot;                     
+##  [817] &quot;El Carmen de Chucurí&quot;        &quot;El Guacamayo&quot;               
+##  [819] &quot;El Playón&quot;                   &quot;Encino&quot;                     
+##  [821] &quot;Enciso&quot;                      &quot;Florián&quot;                    
+##  [823] &quot;Floridablanca&quot;               &quot;Galán&quot;                      
+##  [825] &quot;Gámbita&quot;                     &quot;Girón&quot;                      
+##  [827] &quot;Guaca&quot;                       &quot;Guapotá&quot;                    
+##  [829] &quot;Guavatá&quot;                     &quot;Güepsa&quot;                     
+##  [831] &quot;Hato&quot;                        &quot;Jesús María&quot;                
+##  [833] &quot;Jordán&quot;                      &quot;La Belleza&quot;                 
+##  [835] &quot;Landázuri&quot;                   &quot;Lebrija&quot;                    
+##  [837] &quot;Los Santos&quot;                  &quot;Macaravita&quot;                 
+##  [839] &quot;Málaga&quot;                      &quot;Matanza&quot;                    
+##  [841] &quot;Mogotes&quot;                     &quot;Molagavita&quot;                 
+##  [843] &quot;Ocamonte&quot;                    &quot;Oiba&quot;                       
+##  [845] &quot;Onzaga&quot;                      &quot;Palmar&quot;                     
+##  [847] &quot;Palmas del Socorro&quot;          &quot;Páramo&quot;                     
+##  [849] &quot;Piedecuesta&quot;                 &quot;Pinchote&quot;                   
+##  [851] &quot;Puente Nacional&quot;             &quot;Puerto Parra&quot;               
+##  [853] &quot;Puerto Wilches&quot;              &quot;Sabana de Torres&quot;           
+##  [855] &quot;San Andrés&quot;                  &quot;San Benito&quot;                 
+##  [857] &quot;San Gil&quot;                     &quot;San Joaquín&quot;                
+##  [859] &quot;San José de Miranda&quot;         &quot;San Miguel&quot;                 
+##  [861] &quot;San Vicente de Chucurí&quot;      &quot;Santa Helena del Opón&quot;      
+##  [863] &quot;Simacota&quot;                    &quot;Socorro&quot;                    
+##  [865] &quot;Suaita&quot;                      &quot;Suratá&quot;                     
+##  [867] &quot;Tona&quot;                        &quot;Valle de San José&quot;          
+##  [869] &quot;Vélez&quot;                       &quot;Vetas&quot;                      
+##  [871] &quot;Zapatoca&quot;                    &quot;Sincelejo&quot;                  
+##  [873] &quot;Caimito&quot;                     &quot;Coloso&quot;                     
+##  [875] &quot;Corozal&quot;                     &quot;Coveñas&quot;                    
+##  [877] &quot;Chalán&quot;                      &quot;El Roble&quot;                   
+##  [879] &quot;Galeras&quot;                     &quot;Guaranda&quot;                   
+##  [881] &quot;Los Palmitos&quot;                &quot;Majagual&quot;                   
+##  [883] &quot;Morroa&quot;                      &quot;Ovejas&quot;                     
+##  [885] &quot;Palmito&quot;                     &quot;Sampués&quot;                    
+##  [887] &quot;San Benito Abad&quot;             &quot;San Juan de Betulia&quot;        
+##  [889] &quot;San Marcos&quot;                  &quot;San Onofre&quot;                 
+##  [891] &quot;San Pedro&quot;                   &quot;San Luis de Sincé&quot;          
+##  [893] &quot;Santiago de Tolú&quot;            &quot;Tolú Viejo&quot;                 
+##  [895] &quot;Ibagué&quot;                      &quot;Alpujarra&quot;                  
+##  [897] &quot;Alvarado&quot;                    &quot;Ambalema&quot;                   
+##  [899] &quot;Anzoátegui&quot;                  &quot;Armero&quot;                     
+##  [901] &quot;Ataco&quot;                       &quot;Cajamarca&quot;                  
+##  [903] &quot;Carmen de Apicalá&quot;           &quot;Casabianca&quot;                 
+##  [905] &quot;Chaparral&quot;                   &quot;Coello&quot;                     
+##  [907] &quot;Coyaima&quot;                     &quot;Cunday&quot;                     
+##  [909] &quot;Dolores&quot;                     &quot;Espinal&quot;                    
+##  [911] &quot;Falan&quot;                       &quot;Flandes&quot;                    
+##  [913] &quot;Fresno&quot;                      &quot;Guamo&quot;                      
+##  [915] &quot;Herveo&quot;                      &quot;Honda&quot;                      
+##  [917] &quot;Icononzo&quot;                    &quot;Lérida&quot;                     
+##  [919] &quot;Líbano&quot;                      &quot;Mariquita&quot;                  
+##  [921] &quot;Melgar&quot;                      &quot;Murillo&quot;                    
+##  [923] &quot;Natagaima&quot;                   &quot;Ortega&quot;                     
+##  [925] &quot;Palocabildo&quot;                 &quot;Piedras&quot;                    
+##  [927] &quot;Planadas&quot;                    &quot;Prado&quot;                      
+##  [929] &quot;Purificación&quot;                &quot;Rioblanco&quot;                  
+##  [931] &quot;Roncesvalles&quot;                &quot;Rovira&quot;                     
+##  [933] &quot;Saldaña&quot;                     &quot;San Antonio&quot;                
+##  [935] &quot;Santa Isabel&quot;                &quot;Valle de San Juan&quot;          
+##  [937] &quot;Venadillo&quot;                   &quot;Villahermosa&quot;               
+##  [939] &quot;Villarrica&quot;                  &quot;Cali&quot;                       
+##  [941] &quot;Alcalá&quot;                      &quot;Andalucía&quot;                  
+##  [943] &quot;Ansermanuevo&quot;                &quot;Buenaventura&quot;               
+##  [945] &quot;Guadalajara de Buga&quot;         &quot;Bugalagrande&quot;               
+##  [947] &quot;Caicedonia&quot;                  &quot;Calima&quot;                     
+##  [949] &quot;Cartago&quot;                     &quot;Dagua&quot;                      
+##  [951] &quot;El Águila&quot;                   &quot;El Cairo&quot;                   
+##  [953] &quot;El Cerrito&quot;                  &quot;El Dovio&quot;                   
+##  [955] &quot;Florida&quot;                     &quot;Ginebra&quot;                    
+##  [957] &quot;Guacarí&quot;                     &quot;Jamundí&quot;                    
+##  [959] &quot;La Cumbre&quot;                   &quot;Obando&quot;                     
+##  [961] &quot;Palmira&quot;                     &quot;Pradera&quot;                    
+##  [963] &quot;Riofrío&quot;                     &quot;Roldanillo&quot;                 
+##  [965] &quot;Sevilla&quot;                     &quot;Toro&quot;                       
+##  [967] &quot;Trujillo&quot;                    &quot;Tuluá&quot;                      
+##  [969] &quot;Ulloa&quot;                       &quot;Versalles&quot;                  
+##  [971] &quot;Vijes&quot;                       &quot;Yotoco&quot;                     
+##  [973] &quot;Yumbo&quot;                       &quot;Zarzal&quot;                     
+##  [975] &quot;Arauca&quot;                      &quot;Arauquita&quot;                  
+##  [977] &quot;Cravo Norte&quot;                 &quot;Fortul&quot;                     
+##  [979] &quot;Puerto Rondón&quot;               &quot;Saravena&quot;                   
+##  [981] &quot;Tame&quot;                        &quot;Yopal&quot;                      
+##  [983] &quot;Aguazul&quot;                     &quot;Chámeza&quot;                    
+##  [985] &quot;Hato Corozal&quot;                &quot;La Salina&quot;                  
+##  [987] &quot;Maní&quot;                        &quot;Monterrey&quot;                  
+##  [989] &quot;Nunchía&quot;                     &quot;Orocué&quot;                     
+##  [991] &quot;Paz de Ariporo&quot;              &quot;Pore&quot;                       
+##  [993] &quot;Recetor&quot;                     &quot;Sácama&quot;                     
+##  [995] &quot;San Luis de Palenque&quot;        &quot;Támara&quot;                     
+##  [997] &quot;Tauramena&quot;                   &quot;Trinidad&quot;                   
+##  [999] &quot;Mocoa&quot;                       &quot;Orito&quot;                      
+## [1001] &quot;Puerto Asís&quot;                 &quot;Puerto Caicedo&quot;             
+## [1003] &quot;Puerto Guzmán&quot;               &quot;Puerto Leguízamo&quot;           
+## [1005] &quot;Sibundoy&quot;                    &quot;Valle del Guamuez&quot;          
+## [1007] &quot;Villagarzón&quot;                 &quot;Leticia&quot;                    
+## [1009] &quot;El Encanto (CD)&quot;             &quot;La Chorrera (CD)&quot;           
+## [1011] &quot;La Pedrera (CD)&quot;             &quot;La Victoria (CD)&quot;           
+## [1013] &quot;Miriti - Paraná (CD)&quot;        &quot;Puerto Alegría (CD)&quot;        
+## [1015] &quot;Puerto Arica (CD)&quot;           &quot;Puerto Nariño&quot;              
+## [1017] &quot;Puerto Santander (CD)&quot;       &quot;Tarapacá (CD)&quot;              
+## [1019] &quot;Inírida&quot;                     &quot;Barrancominas (CD)&quot;         
+## [1021] &quot;Mapiripana (CD)&quot;             &quot;San Felipe (CD)&quot;            
+## [1023] &quot;Puerto Colombia (CD)&quot;        &quot;La Guadalupe (CD)&quot;          
+## [1025] &quot;Cacahual (CD)&quot;               &quot;Pana Pana (CD)&quot;             
+## [1027] &quot;Morichal (CD)&quot;               &quot;San José del Guaviare&quot;      
+## [1029] &quot;El Retorno&quot;                  &quot;Mitú&quot;                       
+## [1031] &quot;Carurú&quot;                      &quot;Pacoa (CD)&quot;                 
+## [1033] &quot;Taraira&quot;                     &quot;Papunahua (CD)&quot;             
+## [1035] &quot;Yavaraté (CD)&quot;               &quot;Puerto Carreño&quot;             
+## [1037] &quot;La Primavera&quot;                &quot;Santa Rosalía&quot;              
+## [1039] &quot;Cumaribo&quot;</code></pre>
+<pre class="r"><code># Estandarizacion de las columna dpnom y mpio
+pob_censal$dpnom &lt;- pob_censal$dpnom %&gt;%
+  str_trim() %&gt;%                                # quitar espacios al inicio/final
+  str_to_title() %&gt;%                            # pasar a minúsculas
+  iconv(from = &quot;UTF-8&quot;, to = &quot;ASCII//TRANSLIT&quot;) # quitar tildes
+
+pob_censal$mpio &lt;- pob_censal$mpio %&gt;%
+  str_trim() %&gt;%
+  str_to_title() %&gt;%
+  iconv(from = &quot;UTF-8&quot;, to = &quot;ASCII//TRANSLIT&quot;)</code></pre>
+<ol start="7" style="list-style-type: decimal">
+<li>A partir de la estructura larga de la tabla población (AÑO en
+columna), cree una versión ancha con columnas Pob_1985, Pob_1993,
+Pob_2005, Pob_2018 y guárdela en un nuevo archivo.</li>
+</ol>
+<pre class="r"><code>pob_censal_ancha &lt;- pob_censal %&gt;%
+  pivot_wider(
+    id_cols = c(dp, dpnom, dpmp, mpio),     
+    names_from = ano,                        
+    values_from = poblacion,                 
+    names_prefix = &quot;Pob_&quot;                    
+  )</code></pre>
+<ol start="8" style="list-style-type: decimal">
+<li>Explique cuándo trabajar en largo vs. en ancho para las operaciones
+siguientes.</li>
+</ol>
+<ul>
+<li><strong>Respuesta</strong>:</li>
+</ul>
+<p>La decisión de trabajar los datos en formato largo (long) o ancho
+(wide) depende del tipo de operación que se quiera ejecutar. Al realizar
+una unión con otra tabla no habría mayor diferencia entre usar uno u
+otro formato, ya que las columnas que se expanden en el formato ancho
+(en este caso la población) no intervienen en el cruce de las tablas. No
+obstante, para fines de visualización, el formato ancho permite una
+comparación rápida de los valores entre diferentes años dentro de un
+mismo municipio o entre municipios distintos.</p>
+<p>Por otro lado, al realizar cálculos que requieren relacionar una
+variable con otra (por ejemplo, población respecto al área), el formato
+largo suele ser más recomendable, ya que permite trabajar con todos los
+valores de población independientemente del año en una sola columna. En
+cambio, en el formato ancho sería necesario tomar cada valor de
+población por año y repetir la operación para cada columna.</p>
+<p>Sin embargo, cuando se trata de comparar valores entre años
+específicos, como el cálculo del crecimiento poblacional entre dos
+censos, el formato ancho puede resultar más beneficioso, ya que basta
+con operar directamente entre las columnas correspondientes a cada año.
+En formato largo, este tipo de comparación requeriría más pasos
+intermedios o incluso generar una tabla auxiliar donde se almacenen los
+resultados.</p>
+</div>
+<div id="integración-de-tablas-join-validaciones-y-cálculos" class="section level2">
+<h2>Integración de tablas (join), validaciones y cálculos</h2>
+<ol style="list-style-type: decimal">
+<li>Realice la unión de las tablas población (largo) con
+mun_area.csv</li>
+</ol>
+<pre class="r"><code># Opción 1. Hacer un left-join usando la población poblacional. (Agrega área para 17 municipios)
+pobxarea &lt;- pob_censal %&gt;%
+  left_join(mun_area, by = c(&quot;dp&quot;, &quot;dpmp&quot;,&quot;ano&quot;,&quot;llave&quot;))
+summary(pobxarea)</code></pre>
+<pre><code>##       dp               dpnom               dpmp               mpio          
+##  Length:4488        Length:4488        Length:4488        Length:4488       
+##  Class :character   Class :character   Class :character   Class :character  
+##  Mode  :character   Mode  :character   Mode  :character   Mode  :character  
+##                                                                             
+##                                                                             
+##                                                                             
+##                                                                             
+##       ano         poblacion          llave             mpio_narea      
+##  Min.   :1985   Min.   :      0   Length:4488        Min.   :   41.84  
+##  1st Qu.:1991   1st Qu.:   6201   Class :character   1st Qu.:  403.36  
+##  Median :1999   Median :  11914   Mode  :character   Median :  669.90  
+##  Mean   :2000   Mean   :  34058                      Mean   : 4289.26  
+##  3rd Qu.:2008   3rd Qu.:  23513                      3rd Qu.: 1330.21  
+##  Max.   :2018   Max.   :7088156                      Max.   :42312.78  
+##                                                      NA&#39;s   :4471</code></pre>
+<pre class="r"><code># Opción 2. Hacer un outer-join (full join) pero SOLO utilizando los departamentos y los códigos de los municipios. De forma tal que se impute la misma área para cualquier año. (Asumiendo que no cambia en el tiepo)
+
+full_join_db &lt;- pob_censal %&gt;%
+  full_join(mun_area, by = c(&quot;dp&quot;, &quot;dpmp&quot;)) %&gt;%
+  select(-ends_with(&quot;.y&quot;)) %&gt;%
+  rename_with(~ sub(&quot;\\.x$&quot;, &quot;&quot;, .x), ends_with(&quot;.x&quot;))
+summary(full_join_db)</code></pre>
+<pre><code>##       dp               dpnom               dpmp               mpio          
+##  Length:4488        Length:4488        Length:4488        Length:4488       
+##  Class :character   Class :character   Class :character   Class :character  
+##  Mode  :character   Mode  :character   Mode  :character   Mode  :character  
+##                                                                             
+##                                                                             
+##                                                                             
+##                                                                             
+##       ano         poblacion          llave             mpio_narea      
+##  Min.   :1985   Min.   :      0   Length:4488        Min.   :   15.84  
+##  1st Qu.:1991   1st Qu.:   6201   Class :character   1st Qu.:  132.72  
+##  Median :1999   Median :  11914   Mode  :character   Median :  287.04  
+##  Mean   :2000   Mean   :  34058                      Mean   : 1017.81  
+##  3rd Qu.:2008   3rd Qu.:  23513                      3rd Qu.:  704.09  
+##  Max.   :2018   Max.   :7088156                      Max.   :65597.21  
+##                                                      NA&#39;s   :4</code></pre>
+<ol start="2" style="list-style-type: decimal">
+<li>Reporte registros sin correspondencia en ambas direcciones.</li>
+</ol>
+<ul>
+<li><strong>Respuesta</strong>:</li>
+</ul>
+<p>Se observa que al momento de realizar la unión tipo left a partir de
+las llaves únicamente coinciden 17 regitros. Lo anterior porque no
+comparten información sobre el mismo año. Siendo así, los valores
+faltantes para la columna que describe el área son 4471.</p>
+<p>Sin embargo, si realizamos una unión completa (full join), solo a
+partir de las columnas departamento y código de municipio (dp y dpmp),
+asumiendo que el área es constante a través del tiempo, se observa que
+únicamente 4 registros de área quedan en valor vacío: esto es, la
+información para todos los años asociada al municipio dpmp 9466
+(Mapiripana).</p>
+<pre class="r"><code>faltantes_en_pob_censal &lt;- pob_censal %&gt;%
+  anti_join(mun_area, by = c(&quot;dp&quot;, &quot;dpmp&quot;))
+
+faltantes_en_area &lt;- mun_area %&gt;%
+  anti_join(pob_censal, by = c(&quot;dp&quot;, &quot;dpmp&quot;))
+faltantes_en_pob_censal</code></pre>
+<pre><code>## # A tibble: 4 × 7
+##   dp    dpnom   dpmp  mpio              ano poblacion llave     
+##   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt; &lt;chr&gt;           &lt;int&gt;     &lt;int&gt; &lt;chr&gt;     
+## 1 94    Guainia 94663 Mapiripana (Cd)  1985         0 94663_1985
+## 2 94    Guainia 94663 Mapiripana (Cd)  1993      1694 94663_1993
+## 3 94    Guainia 94663 Mapiripana (Cd)  2005      1176 94663_2005
+## 4 94    Guainia 94663 Mapiripana (Cd)  2018      1108 94663_2018</code></pre>
+<ol start="3" style="list-style-type: decimal">
+<li>Documente la cardinalidad (muchos-a-uno) y cómo evita relaciones
+muchos-a-muchos.</li>
+</ol>
+<ul>
+<li><strong>Respuesta</strong>: La relación es de uno a uno en tanto no
+existen llaves repeditas.</li>
+</ul>
 </div>
 
 
