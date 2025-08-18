@@ -59,7 +59,7 @@ suministrados
 - **pob_censal**: 
   A diferencia del archivo anterior, este es un archivo xlsx que correponde al formato regular de los archivos excel.
   Este permite observar los datos desde una hoja de datos, facilitando su visualizacion y manejo, aunque implicando un
-  mayor peso de almacenaiento. Cada fila describe para un municipio en Colombia, identificado por la llave única dpmp.
+  mayor peso de almacenamiento Cada fila describe para un municipio en Colombia, identificado por la llave única dpmp.
   Esta llave tambien corresponde al codigo unico DIVIPOLA, por lo que desde este punto es importante asegurar que esta
   columna este correctaente leida y con un formato correcto para poder realizar el cruce con la tabla mun-area.
   Además, la tabla tambien presenta información sobre la población de dicho municipio, el departamento al que 
@@ -77,8 +77,16 @@ formato.
 |-------------------------------------|-------------------------------------|
 | ![](stores/2.mun_area.png){width=300px} | ![](stores/2.pob_censal.png){width=350px} |
 
-- **mun_area**: dp, dpmp  son tipo caracter mientras que mpio_narea y ano_creación tipo numérico (64 bits).
+- **mun_area**: dp, dpmp  son tipo carácter mientras que mpio_narea y ano_creación tipo numérico (64 bits).}
+  Asi mismo, dp, dpmp y ano_creación son variables de identificación que guardan características especificas del 
+  municipio que representan y nos ayudan a diferenciarlas de los otros registros. Por otro lado, mpio_narea es una
+  variable de medición que permite comparar el área del municipio con respecto al de los demás y nos permite
+  clasificar los municipios por su tamaño o encontrar territorios con áreas similares.
 - **pob_censal**: dpnom, mpio  son tipo caracter mientras que dp, poblacion, dpmp, ano son tipo numérico (64 bits). 
+  De forma similar a la tabla anterior, todas las variables con excepcion de "poblacion" son de tipo identificación
+  que diferencian cada registro entre si, mientras que poblacion hace referencia a una variable numérica de medición
+  la cual nos dice cual es el número de habitantes de cada municipio en un año determinado, permitiendo analizar su   
+  distribución demográfica, comparar densidades poblacionales y estudiar la evolución de la población en el tiempo.
 
 ```{r Tipo y formato}
 sapply(mun_area, class)
