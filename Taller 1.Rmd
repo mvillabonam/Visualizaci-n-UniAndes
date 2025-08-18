@@ -25,6 +25,8 @@ if (user == "judel") {
 } else if (user == "mvill") {
   path <- file.path("C:/Users", "mvill", "OneDrive", "Transitorio", "OneDrive", 
                     "Documentos", "GitHub", "Visualizaci-n-UniAndes")
+} else if (user == "hncar") {
+  path <- file.path("C:/Users", "hncar", "Documents", "GitHub", "Visualizaci-n-UniAndes")
 } else {
   path <- choose.dir(caption = "Selecciona la carpeta con los archivos")
 }
