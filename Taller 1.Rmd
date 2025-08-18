@@ -277,6 +277,44 @@ sapply(pob_censal, class)
 ```
 
 
-4. Asegure tipos de datos correctos de acuerdo con las reglas que identificó previamente ( e.g.
-DP, DPMP caracteres que pueden iniciar con “0”; Población entera).
+6. Estandarice nombres (mayúsculas/acentos) en DPNOM y MPIO, si es necesario.
 
+
+```{r Estandarizacion}
+# Departamentos únicos
+unique(pob_censal$dpnom)
+
+# Municipios únicos
+unique(pob_censal$mpio)
+
+# Estandarizacion de las columna dpnom y mpio
+pob_censal$dpnom <- pob_censal$dpnom %>%
+  str_trim() %>%                                # quitar espacios al inicio/final
+  str_to_lower() %>%                            # pasar a minúsculas
+  iconv(from = "UTF-8", to = "ASCII//TRANSLIT") # quitar tildes
+
+pob_censal$mpio <- pob_censal$mpio %>%
+  str_trim() %>%
+  str_to_lower() %>%
+  iconv(from = "UTF-8", to = "ASCII//TRANSLIT")
+
+
+```
+
+
+7. A par@r de la estructura larga de la tabla población (AÑO en columna), cree una versión
+ancha con columnas Pob_1985, Pob_1993, Pob_2005, Pob_2018 y guárdela en un nuevo
+archivo.
+
+
+```{r Tabla ancha}
+
+pob_censal_ancha <- pob_censal %>%
+  pivot_wider(
+    id_cols = c(dp, dpnom, dpmp, mpio),     
+    names_from = ano,                        
+    values_from = poblacion,                 
+    names_prefix = "Pob_"                    
+  )
+
+```
