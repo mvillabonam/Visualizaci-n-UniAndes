@@ -46,12 +46,24 @@ pob_censal <- read_excel(file_poblacion, sheet = 1) %>% clean_names()
 1. Identifique y justifique la *unidad de observación* en cada tabla de datos 
 suministrados
 
-- **mun_area**: Cada fila describe para un municipio en Colombia, identificado por la llave única dpmp.
+- **mun_area**: 
+  Este archivo es un documento en formato csv que permite guardar información en un  texto plano, 
+  donde los datos se guardan en filas y columnas separadas por comas u otro separador. Este 
+  formato permite guardar una gran cantidad de información ocupando menos espacio que un excel regular, 
+  además de ser compatible por muchos otros tipos de programa para lograr leerlos. Con respecto a los datos
+  que contiene, cada fila describe para un municipio en Colombia, identificado por la llave única dpmp.
+  Este identificador corresponde al codigo DIVIPOLA, que es el sistema de codificacion de la division 
+  politica - administrativa de los departamentos y municipios en el territorio nacional, creado por el DANE.
   Además, presenta información sobre su área, el departamento al que pertenece, el año en que fue creado. 
 
-- **pob_censal**: Cada fila describe para un municipio en Colombia, identificado por la llave única dpmp. 
-  Además, presenta información sobre la población de dicho municipio, el departamento al que pertenece y 
-  su nombre; así cómo el año al que pertenece la información de población.
+- **pob_censal**: 
+  A diferencia del archivo anterior, este es un archivo xlsx que correponde al formato regular de los archivos excel.
+  Este permite observar los datos desde una hoja de datos, facilitando su visualizacion y manejo, aunque implicando un
+  mayor peso de almacenaiento. Cada fila describe para un municipio en Colombia, identificado por la llave única dpmp.
+  Esta llave tambien corresponde al codigo unico DIVIPOLA, por lo que desde este punto es importante asegurar que esta
+  columna este correctaente leida y con un formato correcto para poder realizar el cruce con la tabla mun-area.
+  Además, la tabla tambien presenta información sobre la población de dicho municipio, el departamento al que 
+  pertenece y su nombre; así cómo el año al que pertenece la información de población.
 
 ```{r Resumen}
 summary(mun_area)
