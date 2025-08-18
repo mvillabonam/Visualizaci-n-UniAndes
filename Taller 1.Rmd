@@ -1,6 +1,6 @@
 ---
 title: "Taller 1 - Visualización y Exploración de bases de datos"
-author: " Henry Carvajal (),Julian Delgado () , Mariana Villabona (201816559)"
+author: " Henry Carvajal (201718787),Julian Delgado () , Mariana Villabona (201816559)"
 date: "Visualización y Exploración de datos para ciencias sociales"
 output: html_document
 ---
