@@ -483,8 +483,30 @@ den_2018
 3. ¿Cuáles son los 5 departamentos de Colombia con mayor densidad en 1993 y en 2018?
 ```{r Pregunta 3 indagación}
 
+tabla_departanebtos <- pobxarea %>%
+  group_by(dp, dpnom, ano) %>%
+  summarise(
+    pob_total = sum(poblacion, na.rm = TRUE),
+    area_total = sum(mpio_narea, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(densidad = pob_total / area_total)
+
+# Top 5 departamentos en 1993
+top_1993 <- tabla_departanebtos %>%
+  filter(ano == 1993) %>%
+  arrange(desc(densidad)) %>%
+  head(5)
+
+# Top 5 departamentos en 2018
+top_2018 <- tabla_departanebtos %>%
+  filter(ano == 2018) %>%
+  arrange(desc(densidad)) %>%
+  head(5)
+
+
 ```
-4. ¿Cómo ha cambiado la distribución de la población municipal colombiana desde 1985? Puede realizar un análisis por cuar@les o percen@les con gráficos.
+4. ¿Cómo ha cambiado la distribución de la población municipal colombiana desde 1985? Puede realizar un análisis por cuartiles o percentiles con gráficos.
 ```{r Pregunta 4 indagación}
 
 ```
