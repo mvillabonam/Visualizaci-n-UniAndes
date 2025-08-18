@@ -428,15 +428,58 @@ agg_departamento <- pobxarea %>%
 
 1. ¿¿Cuáles son los 20 municipios de Colombia con mayor crecimiento poblacional desde 1985? Absoluto y porcentual
 ```{r Pregunta 1 indagación}
+crecimiento_poblacional <- full_join_db %>%
+  group_by(mpio) %>%
+  summarise(
+    pob_1985 = sum(poblacion[ano == 1985], na.rm = TRUE),
+    pob_2018 = sum(poblacion[ano == 2018], na.rm = TRUE)
+  ) %>%
+  mutate(
+    crecimiento_abs = pob_2018 - pob_1985,
+    crecimiento_pct = (pob_2018 / pob_1985 - 1) * 100
+  ) %>%
+  arrange(desc(crecimiento_pct))
 
+tabla_abs <- crecimiento_poblacional %>% # Tabla primeros 20 crecimiento absoluto
+  select(mpio, crecimiento_abs) %>%
+  head(20)
 
+tabla_pct <- crecimiento_poblacional %>%  # Tabla primeros 20 crecimiento porcentual
+  filter(is.finite(crecimiento_pct)) %>%   # quita Inf, -Inf y NaN
+  select(mpio, crecimiento_pct) %>%
+  slice_max(order_by = crecimiento_pct, n = 20, with_ties = FALSE)
 
+tabla_abs
+tabla_pct
 
+# Guardar en Excel
+write_xlsx(crecimiento_poblacional, "stores/crecimiento_poblacional.xlsx")
+rm(tabla_abs, tabla_pct,crecimiento_poblacional)
 ```
+
 2. ¿Cuáles son los 10 municipios de Colombia con mayor densidad en 1993 y en 2018?
 ```{r Pregunta 2 indagación}
+densidad_municipios <- full_join_db %>%
+  group_by(mpio) %>%
+  summarise(
+    den_1993 = sum(poblacion[ano == 1993], na.rm = TRUE)/ sum(mpio_narea[ano == 1993], na.rm = TRUE),
+    den_2018 = sum(poblacion[ano == 2018], na.rm = TRUE)/ sum(mpio_narea[ano == 2018], na.rm = TRUE)
+  ) 
 
+den_1993 <- densidad_municipios %>%
+  arrange(desc(den_1993)) %>%
+  select(mpio, den_1993) %>%
+  head(10)
+
+den_2018 <- densidad_municipios %>%
+  arrange(desc(den_2018)) %>%
+  select(mpio, den_2018) %>%
+  head(10)
+
+den_1993
+den_2018
 ```
+
 3. ¿Cuáles son los 5 departamentos de Colombia con mayor densidad en 1993 y en 2018?
 ```{r Pregunta 3 indagación}
 
