@@ -318,3 +318,26 @@ pob_censal_ancha <- pob_censal %>%
   )
 
 ```
+
+8. Explique cuándo trabajar en largo vs. en ancho para las operaciones siguientes.
+
+La decisión de trabajar los datos en formato largo (long) o ancho (wide) depende del tipo de operación que se quiera ejecutar.
+Al realizar una unión con otra tabla no habría mayor diferencia entre usar uno u otro formato, ya que las columnas que se expanden en el formato ancho (en este caso la población) no intervienen en el cruce de las tablas.
+No obstante, para fines de visualización, el formato ancho permite una comparación rápida de los valores entre diferentes años dentro de un mismo municipio o entre municipios distintos.
+
+Por otro lado, al realizar cálculos que requieren relacionar una variable con otra (por ejemplo, población respecto al área), el formato largo suele ser más recomendable, ya que permite trabajar con todos los valores de población independientemente del año en una sola columna. En cambio, en el formato ancho sería necesario tomar cada valor de población por año y repetir la operación para cada columna.
+
+Sin embargo, cuando se trata de comparar valores entre años específicos, como el cálculo del crecimiento poblacional entre dos censos, el formato ancho puede resultar más beneficioso, ya que basta con operar directamente entre las columnas correspondientes a cada año. En formato largo, este tipo de comparación requeriría más pasos intermedios o incluso generar una tabla auxiliar donde se almacenen los resultados.
+
+
+
+## Integración de tablas (join), validaciones y cálculos
+
+1. Identifique y justifique la *unidad de observación* en cada tabla de datos suministrados
+
+
+```{cruce de los datos}
+
+
+```
+
