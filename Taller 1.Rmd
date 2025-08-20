@@ -14,7 +14,7 @@ closeAllConnections()
 # --- Cargar librerías necesarias
 library("pacman")
 require("pacman")
-p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggplot2)
+p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggplot2,openxlsx, writexl)
 
 # --- Definir rutas
 user <- Sys.getenv("USERNAME")
@@ -453,6 +453,9 @@ tabla_abs
 tabla_pct
 
 # Guardar en Excel
+if(!dir.exists("stores")) {
+  dir.create("stores")
+}
 write_xlsx(crecimiento_poblacional, "stores/crecimiento_poblacional.xlsx")
 rm(tabla_abs, tabla_pct,crecimiento_poblacional)
 ```
@@ -504,12 +507,41 @@ top_2018 <- tabla_departanebtos %>%
   arrange(desc(densidad)) %>%
   head(5)
 
-
+top_1993
+top_2018
 ```
 4. ¿Cómo ha cambiado la distribución de la población municipal colombiana desde 1985? Puede realizar un análisis por cuartiles o percentiles con gráficos.
 ```{r Pregunta 4 indagación}
 
+# Primero calculamos percentiles o cuartiles por año
+cuartiles_poblacion <- pobxarea %>%
+  group_by(ano) %>%
+  summarise(
+    Q1 = quantile(poblacion, 0.25, na.rm = TRUE),
+    Q2 = quantile(poblacion, 0.50, na.rm = TRUE),
+    Q3 = quantile(poblacion, 0.75, na.rm = TRUE),
+    P90 = quantile(poblacion, 0.90, na.rm = TRUE)
+  )
+
+print(cuartiles_poblacion)
+
+# Ahora un gráfico de boxplot para ver la distribución por año
+boxplot<- ggplot(pobxarea, aes(x = factor(ano), y = poblacion)) +
+          geom_boxplot(fill = "skyblue", color = "black", outlier.alpha = 0.3) +
+          scale_y_log10() +  # Log para ver mejor la dispersión
+          labs(
+          title = "Distribución de la población municipal en Colombia (1985-2018)", 
+            x = "Año",
+            y = "Población (escala logarítmica)"
+               ) +
+                theme_minimal()
 ```
+La distribución de la población municipal en Colombia muestra un patrón estable en la mayoría de los municipios a lo largo del tiempo, pero con un aumento progresivo en los valores extremos (outliers).
 
+El rango intercuartílico (IQR) —la “caja” del boxplot— se mantiene relativamente similar entre 1985 y 2018, lo que indica que la mayoría de los municipios han tenido un crecimiento poblacional moderado y relativamente homogéneo.
 
+Sin embargo, se observa un incremento en la dispersión hacia arriba, especialmente a partir de 2005 y 2018: los municipios más poblados (outliers superiores) han crecido mucho más que el resto.
 
+Esto refleja un proceso de concentración urbana: mientras la mayoría de municipios permanecen pequeños o medianos, un grupo reducido de ciudades concentra cada vez una proporción mayor de la población.
+
+El uso de escala logarítmica confirma que existen fuertes desigualdades en el tamaño poblacional municipal, y que estas desigualdades se han intensificado con el tiempo.
