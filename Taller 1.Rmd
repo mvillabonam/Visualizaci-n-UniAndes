@@ -14,7 +14,7 @@ closeAllConnections()
 # --- Cargar librerías necesarias
 library("pacman")
 require("pacman")
-p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggplot2,openxlsx, writexl)
+p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggplot2,openxlsx, writexl,sf,osmdata,dplyr)
 
 # --- Definir rutas
 user <- Sys.getenv("USERNAME")
@@ -36,6 +36,8 @@ setwd(path)
 # --- Cargar datos 
 file_area      <- file.path(path, "data/mun_area.csv")
 file_poblacion <- file.path(path, "data/pob_censal.xlsx")
+# Adicional para punto 3
+col_mpios <- st_read("data/shapes.shp", quiet = TRUE)
 
 mun_area   <- read_csv(file_area) %>% clean_names()
 pob_censal <- read_excel(file_poblacion, sheet = 1) %>% clean_names()
@@ -166,7 +168,7 @@ rm(duplicados_pob, duplicados_area)
 3. Explique qué tipo de unión tendrían las tablas disponibles y por qué.
 
 - **Respuesta**: Si no quisiéramos perder nada de información 
-  debería realizarse un outer join usando la llave creada anteriormente. El outer join es la manera en la
+ debería realizarse un outer join usando la llave (código municipio + año) creada anteriormente. El outer join es la manera en la
   que preservamos más información sobre los municipios en cada año dado que este tipo de union busca mantener 
   todos los datos de ambas tablas a relacionar, sin darle importancia a que la llave buscada se encuentre en 
   ambas tablas.
@@ -176,7 +178,7 @@ rm(duplicados_pob, duplicados_area)
   contemple toda la información disponible en pob_censal y se complemente con información relacionada al área del
   municipio para los años disponibles. 
   
-  Sin embargo, considerando que solo comparten 17 observaciones (Municipios y años comunes)
+  A nuestra consideración considerando que solo comparten 17 observaciones (Municipios y años comunes)
   podría ser de interés solo preservar la data de población censal y agregar, para los años 
   disponibles, el área de los 17 municipios en común. Lo anterior puede realizarse con un 
   left join o right join, dependiendo de cual tabla queramos mantener como la "principal" o la
@@ -253,6 +255,10 @@ rm(llaves_pob,llaves_area,llaves_comunes,llaves_solo_pob,llave_solo_area)
 4. Asegure tipos de datos correctos de acuerdo con las reglas que identificó previamente ( e.g.
 DP, DPMP caracteres que pueden iniciar con “0”; Población entera).
 
+- **Respuesta**: En el punto 1 de esta sección (Preparación de los datos), también nos encargamos
+  de homogenizar la información sobre la scolumnas comunes. El filtro a continuación busca los datos 
+  negativos en población y área, en caso de no encontrar imprime "No hay población negativa". 
+
 ```{r Checks por variable, echo=FALSE, message=FALSE}
 # --- población
 pob_neg <- pob_censal %>% filter(poblacion < 0 | is.na(poblacion))
@@ -322,6 +328,7 @@ pob_censal_ancha <- pob_censal %>%
     values_from = poblacion,                 
     names_prefix = "Pob_"                    
   )
+write.xlsx(pob_censal_ancha,"stores/2.7Poblacion_censal_ancha.xsx")
 ```
 
 8. Explique cuándo trabajar en largo vs. en ancho para las operaciones siguientes.
@@ -384,8 +391,58 @@ municipio y el año) solo se agrega información para filas que comparten la mis
 ```{r Densidad poblacional}
 pobxarea <- full_join_db %>%
   mutate(densidad = poblacion / mpio_narea)
-
+pobxarea
+write_xlsx(pobxarea,"stores/3.1 DensidadPoblacional.xlsx")
 ```
+```{r Mapa para gráfico}
+# 2) Normalizar llaves (5 dígitos) en ambas tablas: pobxarea$dppmp y col_mpios$codmpio
+pobxarea_key <- pobxarea %>%
+  mutate(
+    dpmp = as.character(dpmp),
+    dpmp = str_extract(dpmp, "\\d+"),
+    dpmp = str_pad(dpmp, width = 5, pad = "0")
+  )
+
+col_mpios_key <- col_mpios %>%
+  mutate(
+    codmpio = as.character(mpios),
+    codmpio = str_extract(mpios, "\\d+"),
+    codmpio = str_pad(mpios, width = 5, pad = "0")
+  )
+
+# 3) Unir por codmpio (shape) = dppmp (tu data)
+map_data <- col_mpios_key %>%
+  left_join(
+    pobxarea_key %>% select(dpmp, densidad),
+    by = c("codmpio" = "dpmp")
+  )
+
+# 4) Mapa
+ggplot(map_data) +
+  geom_sf(aes(fill = densidad), color = NA) +
+  scale_fill_viridis_c(
+    option = "magma",
+    trans = "log10",
+    na.value = "grey90",
+    labels = scales::label_number(accuracy = 0.1)
+  ) +
+  labs(
+    title = "Densidad poblacional promedio por municipio en Colombia",
+    subtitle = "Habitantes por km² (escala log10)",
+    fill = "Hab/km²"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid = element_blank())
+
+ggsave(
+  filename = "outputs/3.1mapa_densidad_promedio_colombia.png", # ruta y nombre del archivo
+  plot = last_plot(),   # guarda el último gráfico generado
+  width = 10,           # ancho en pulgadas
+  height = 12,          # alto en pulgadas
+  dpi = 300             # resolución (buena calidad para informes)
+)
+```
+
 2. Crecimiento absoluto 1985→2018 y crecimiento porcentual 1985→2018 por municipio.
 ```{r Crecimiento poblacional}
 pob_2 <- pobxarea %>%
@@ -400,7 +457,64 @@ pob_2 <- pobxarea %>%
     crec_absoluto = Pob_2018 - Pob_1985,
     crec_porcentual = (Pob_2018 - Pob_1985) / Pob_1985 * 100
   )
+print(pob_2)
+
+write_xlsx(pob_2,"stores/3.2 Crecimiento absoluto y porcentual1985-2018.xlsx")
 ```
+
+```{r Creimiento promedio}
+pobxarea <- full_join_db %>%
+  mutate(densidad = poblacion / mpio_narea)
+pobxarea
+write_xlsx(pobxarea,"stores/3.1 DensidadPoblacional.xlsx")
+```
+
+```{r Mapa crecimientos }
+# 2) Normalizar llaves (5 dígitos) en ambas tablas: pob_2$dppmp y col_mpios$codmpio
+pob_2_key <- pob_2 %>%
+  mutate(
+    dpmp = as.character(dpmp),
+    dpmp = str_extract(dpmp, "\\d+"),
+    dpmp = str_pad(dpmp, width = 5, pad = "0")
+  )
+
+col_mpios_key <- col_mpios %>%
+  mutate(
+    codmpio = as.character(mpios),
+    codmpio = str_extract(mpios, "\\d+"),
+    codmpio = str_pad(mpios, width = 5, pad = "0")
+  )
+
+# 3) Unir por codmpio (shape) = dppmp (tu data)
+map_data <- col_mpios_key %>%
+  left_join(
+    pob_2_key %>% select(dpmp, crec_absoluto, crec_porcentual),
+    by = c("codmpio" = "dpmp")
+  )
+
+# 4) Mapa
+ggplot(map_data) +
+  geom_sf(aes(fill = crec_absoluto), color = NA) +
+  scale_fill_viridis_c(
+    option = "magma",
+    trans = "log10",
+    na.value = "grey90",
+    labels = scales::label_number(accuracy = 0.1)
+  ) +
+  labs(
+    title = "Crecimiento absoluto municipio en Colombia",
+    subtitle = "(escala log10)",
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid = element_blank())
+
+# --- Guardar en PNG -------------------------------------------------
+ggsave(
+  filename = "stores/mapas_crecimiento_1985_2018.png",
+  plot = p_combo, width = 14, height = 10, dpi = 300
+)
+```
+
 3. Agregación por departamento (DP) para densidad y crecimiento (aclare la definición usada).
 ```{r Agregacion}
 agg_departamento <- pobxarea %>%
@@ -526,7 +640,7 @@ cuartiles_poblacion <- pobxarea %>%
 print(cuartiles_poblacion)
 
 # Ahora un gráfico de boxplot para ver la distribución por año
-boxplot<- ggplot(pobxarea, aes(x = factor(ano), y = poblacion)) +
+boxplot_g<- ggplot(pobxarea, aes(x = factor(ano), y = poblacion)) +
           geom_boxplot(fill = "skyblue", color = "black", outlier.alpha = 0.3) +
           scale_y_log10() +  # Log para ver mejor la dispersión
           labs(
@@ -535,6 +649,7 @@ boxplot<- ggplot(pobxarea, aes(x = factor(ano), y = poblacion)) +
             y = "Población (escala logarítmica)"
                ) +
                 theme_minimal()
+print(boxplot_g)
 ```
 La distribución de la población municipal en Colombia muestra un patrón estable en la mayoría de los municipios a lo largo del tiempo, pero con un aumento progresivo en los valores extremos (outliers).
 

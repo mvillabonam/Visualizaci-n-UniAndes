@@ -557,23 +557,24 @@ qué.</li>
 </ol>
 <ul>
 <li><p><strong>Respuesta</strong>: Si no quisiéramos perder nada de
-información debería realizarse un outer join usando la llave creada
-anteriormente. El outer join es la manera en la que preservamos más
-información sobre los municipios en cada año dado que este tipo de union
-busca mantener todos los datos de ambas tablas a relacionar, sin darle
-importancia a que la llave buscada se encuentre en ambas tablas.</p>
+información debería realizarse un outer join usando la llave (código
+municipio + año) creada anteriormente. El outer join es la manera en la
+que preservamos más información sobre los municipios en cada año dado
+que este tipo de union busca mantener todos los datos de ambas tablas a
+relacionar, sin darle importancia a que la llave buscada se encuentre en
+ambas tablas.</p>
 <p>En nuestro caso, dado que las bases de datos solo comparten los años
 1985 y 1993; pero comparten casi todos los<br />
 municipios (exceptuando el 94663 solo disponible en población censal)
 podemos tener una base de datos única que contemple toda la información
 disponible en pob_censal y se complemente con información relacionada al
 área del municipio para los años disponibles.</p>
-<p>Sin embargo, considerando que solo comparten 17 observaciones
-(Municipios y años comunes) podría ser de interés solo preservar la data
-de población censal y agregar, para los años disponibles, el área de los
-17 municipios en común. Lo anterior puede realizarse con un left join o
-right join, dependiendo de cual tabla queramos mantener como la
-“principal” o la tabla maestra.</p>
+<p>A nuestra consideración considerando que solo comparten 17
+observaciones (Municipios y años comunes) podría ser de interés solo
+preservar la data de población censal y agregar, para los años
+disponibles, el área de los 17 municipios en común. Lo anterior puede
+realizarse con un left join o right join, dependiendo de cual tabla
+queramos mantener como la “principal” o la tabla maestra.</p>
 <p>Además, procuramos preservar el formato long dado que este formato
 favorece la manipulación de la información para el análisis
 descriptivo.</p></li>
@@ -599,6 +600,13 @@ descriptivo.</p></li>
 identificó previamente ( e.g. DP, DPMP caracteres que pueden iniciar con
 “0”; Población entera).</li>
 </ol>
+<ul>
+<li><strong>Respuesta</strong>: En el punto 1 de esta sección
+(Preparación de los datos), también nos encargamos de homogenizar la
+información sobre la scolumnas comunes. El filtro a continuación busca
+los datos negativos en población y área, en caso de no encontrar imprime
+“No hay población negativa”.</li>
+</ul>
 <pre><code>## No hay población negativa.</code></pre>
 <pre><code>##          dp        dpmp  mpio_narea         ano       llave 
 ## &quot;character&quot; &quot;character&quot;   &quot;numeric&quot;   &quot;integer&quot; &quot;character&quot;</code></pre>
@@ -1185,7 +1193,8 @@ Pob_2005, Pob_2018 y guárdela en un nuevo archivo.</li>
     names_from = ano,                        
     values_from = poblacion,                 
     names_prefix = &quot;Pob_&quot;                    
-  )</code></pre>
+  )
+write.xlsx(pob_censal_ancha,&quot;stores/2.7Poblacion_censal_ancha.xsx&quot;)</code></pre>
 <ol start="8" style="list-style-type: decimal">
 <li>Explique cuándo trabajar en largo vs. en ancho para las operaciones
 siguientes.</li>
@@ -1241,7 +1250,7 @@ summary(pobxarea)</code></pre>
 ##  3rd Qu.:2008   3rd Qu.:  23513                      3rd Qu.: 1330.21  
 ##  Max.   :2018   Max.   :7088156                      Max.   :42312.78  
 ##                                                      NA&#39;s   :4471</code></pre>
-<pre class="r"><code># Opción 2. Hacer un outer-join (full join) pero SOLO utilizando los departamentos y los códigos de los municipios. De forma tal que se impute la misma área para cualquier año. (Asumiendo que no cambia en el tiepo)
+<pre class="r"><code># Opción 2. Hacer un outer-join (full join) pero SOLO utilizando los departamentos y los códigos de los municipios. De forma tal que se impute la misma área para cualquier año. (Asumiendo que no cambia en el tiempo)
 
 full_join_db &lt;- pob_censal %&gt;%
   full_join(mun_area, by = c(&quot;dp&quot;, &quot;dpmp&quot;)) %&gt;%
@@ -1298,9 +1307,290 @@ faltantes_en_pob_censal</code></pre>
 muchos-a-muchos.</li>
 </ol>
 <ul>
-<li><strong>Respuesta</strong>: La relación es de uno a uno en tanto no
-existen llaves repeditas.</li>
+<li><strong>Respuesta</strong>: Para el left-join la relación es de uno
+a uno, pues al unir las bases de datos a partir de una llave única (la
+combinación del código del municipio y el año) solo se agrega
+información para filas que comparten la misma unidad de observación.
+Ahora bien, para la unión mediante full-join; dado que realizamos la
+unión de la base de datos a partir de la cardinalidad “uno a muchos” en
+tanto, al unir únicamente mediante departamento y código de municipio,
+se asignó el área de los municipios sin importar el año al que se
+estuviera haciendo referencia. Lo anterior se realizó bajo el supuesto
+de que el área asignada a cada municipio no varía en función del
+tiempo.</li>
 </ul>
+</div>
+<div id="calculos-de-interes" class="section level2">
+<h2>Calculos de interes</h2>
+<p>1, Densidad poblacional = Población / MPIO_NAREA.</p>
+<pre class="r"><code>pobxarea &lt;- full_join_db %&gt;%
+  mutate(densidad = poblacion / mpio_narea)</code></pre>
+<ol start="2" style="list-style-type: decimal">
+<li>Crecimiento absoluto 1985→2018 y crecimiento porcentual 1985→2018
+por municipio.</li>
+</ol>
+<pre class="r"><code>pob_2 &lt;- pobxarea %&gt;%
+  filter(ano %in% c(1985, 2018)) %&gt;%
+  select(dp, dpnom, dpmp, mpio, ano, poblacion) %&gt;%
+  pivot_wider(
+    names_from = ano,
+    values_from = poblacion,
+    names_prefix = &quot;Pob_&quot;
+  ) %&gt;%
+  mutate(
+    crec_absoluto = Pob_2018 - Pob_1985,
+    crec_porcentual = (Pob_2018 - Pob_1985) / Pob_1985 * 100
+  )</code></pre>
+<ol start="3" style="list-style-type: decimal">
+<li>Agregación por departamento (DP) para densidad y crecimiento (aclare
+la definición usada).</li>
+</ol>
+<pre class="r"><code>agg_departamento &lt;- pobxarea %&gt;%
+  filter(ano %in% c(1985, 2018)) %&gt;%
+  group_by(dp, dpnom, ano) %&gt;%
+  summarise(
+    pob_total = sum(poblacion, na.rm = TRUE),
+    area_total = sum(mpio_narea, na.rm = TRUE),
+    .groups = &quot;drop&quot;
+  ) %&gt;%
+  mutate(densidad = pob_total / area_total) %&gt;%
+  pivot_wider(
+    names_from = ano,
+    values_from = c(pob_total, densidad),
+    names_sep = &quot;_&quot;
+  ) %&gt;%
+  mutate(
+    crec_abs = pob_total_2018 - pob_total_1985,
+    crec_pct = (pob_total_2018 - pob_total_1985) / pob_total_1985 * 100
+  )</code></pre>
+</div>
+<div id="preguntas-de-indagación" class="section level2">
+<h2>Preguntas de indagación</h2>
+<ol style="list-style-type: decimal">
+<li>¿¿Cuáles son los 20 municipios de Colombia con mayor crecimiento
+poblacional desde 1985? Absoluto y porcentual</li>
+</ol>
+<pre class="r"><code>crecimiento_poblacional &lt;- full_join_db %&gt;%
+  group_by(mpio) %&gt;%
+  summarise(
+    pob_1985 = sum(poblacion[ano == 1985], na.rm = TRUE),
+    pob_2018 = sum(poblacion[ano == 2018], na.rm = TRUE)
+  ) %&gt;%
+  mutate(
+    crecimiento_abs = pob_2018 - pob_1985,
+    crecimiento_pct = (pob_2018 / pob_1985 - 1) * 100
+  ) %&gt;%
+  arrange(desc(crecimiento_pct))
+
+tabla_abs &lt;- crecimiento_poblacional %&gt;% # Tabla primeros 20 crecimiento absoluto
+  select(mpio, crecimiento_abs) %&gt;%
+  head(20)
+
+tabla_pct &lt;- crecimiento_poblacional %&gt;%  # Tabla primeros 20 crecimiento porcentual
+  filter(is.finite(crecimiento_pct)) %&gt;%   # quita Inf, -Inf y NaN
+  select(mpio, crecimiento_pct) %&gt;%
+  slice_max(order_by = crecimiento_pct, n = 20, with_ties = FALSE)
+
+tabla_abs</code></pre>
+<pre><code>## # A tibble: 20 × 2
+##    mpio                    crecimiento_abs
+##    &lt;chr&gt;                             &lt;int&gt;
+##  1 Algarrobo                         16074
+##  2 Altos Del Rosario                 11442
+##  3 Arenal                             7624
+##  4 Arroyohondo                        8340
+##  5 Atrato                             6118
+##  6 Barranca De Upia                   6522
+##  7 Cantagallo                         8702
+##  8 Carmen Del Darien                 19276
+##  9 Certegui                           5248
+## 10 Chachagui                         15282
+## 11 Chivor                             2680
+## 12 Cicuco                            13580
+## 13 Clemencia                         14696
+## 14 Cotorra                           19092
+## 15 Covenas                           20534
+## 16 Dibulla                           38512
+## 17 Distraccion                       13210
+## 18 El Canton Del San Pablo            5996
+## 19 El Carmen De Chucuri              21698
+## 20 El Dorado                          3978</code></pre>
+<pre class="r"><code>tabla_pct</code></pre>
+<pre><code>## # A tibble: 20 × 2
+##    mpio                 crecimiento_pct
+##    &lt;chr&gt;                          &lt;dbl&gt;
+##  1 Toribio                        1850.
+##  2 Puerto Gaitan                   651.
+##  3 Suarez                          648.
+##  4 Los Patios                      502.
+##  5 Taraira                         486.
+##  6 Manaure                         470.
+##  7 Uribia                          456.
+##  8 Mosquera                        451.
+##  9 Magui                           440.
+## 10 La Macarena                     435.
+## 11 Cartagena Del Chaira            407.
+## 12 San Miguel                      394.
+## 13 Pacoa (Cd)                      379.
+## 14 El Retorno                      376.
+## 15 Cumaribo                        365.
+## 16 Nuqui                           365.
+## 17 Galapa                          359.
+## 18 Puerto Narino                   350.
+## 19 Castilla La Nueva               344.
+## 20 Yopal                           313.</code></pre>
+<pre class="r"><code># Guardar en Excel
+if(!dir.exists(&quot;stores&quot;)) {
+  dir.create(&quot;stores&quot;)
+}
+write_xlsx(crecimiento_poblacional, &quot;stores/crecimiento_poblacional.xlsx&quot;)
+rm(tabla_abs, tabla_pct,crecimiento_poblacional)</code></pre>
+<ol start="2" style="list-style-type: decimal">
+<li>¿Cuáles son los 10 municipios de Colombia con mayor densidad en 1993
+y en 2018?</li>
+</ol>
+<pre class="r"><code>densidad_municipios &lt;- full_join_db %&gt;%
+  group_by(mpio) %&gt;%
+  summarise(
+    den_1993 = sum(poblacion[ano == 1993], na.rm = TRUE)/ sum(mpio_narea[ano == 1993], na.rm = TRUE),
+    den_2018 = sum(poblacion[ano == 2018], na.rm = TRUE)/ sum(mpio_narea[ano == 2018], na.rm = TRUE)
+  ) 
+
+den_1993 &lt;- densidad_municipios %&gt;%
+  arrange(desc(den_1993)) %&gt;%
+  select(mpio, den_1993) %&gt;%
+  head(10)
+
+den_2018 &lt;- densidad_municipios %&gt;%
+  arrange(desc(den_2018)) %&gt;%
+  select(mpio, den_2018) %&gt;%
+  head(10)
+
+den_1993</code></pre>
+<pre><code>## # A tibble: 10 × 2
+##    mpio            den_1993
+##    &lt;chr&gt;              &lt;dbl&gt;
+##  1 Mapiripana (Cd)     Inf 
+##  2 Itagui             8331.
+##  3 Barranquilla       5900.
+##  4 Soledad            4396.
+##  5 Medellin           4214.
+##  6 Cali               3203.
+##  7 Bogota, D.c.       3121.
+##  8 Bucaramanga        2326.
+##  9 Sabaneta           2212.
+## 10 Dosquebradas       2029.</code></pre>
+<pre class="r"><code>den_2018</code></pre>
+<pre><code>## # A tibble: 10 × 2
+##    mpio            den_2018
+##    &lt;chr&gt;              &lt;dbl&gt;
+##  1 Mapiripana (Cd)     Inf 
+##  2 Itagui            13416.
+##  3 Soledad            9916.
+##  4 Barranquilla       7494.
+##  5 Medellin           6086.
+##  6 Sabaneta           4838.
+##  7 Bogota, D.c.       4368.
+##  8 Cali               3704.
+##  9 Bucaramanga        3607.
+## 10 Soacha             3418.</code></pre>
+<ol start="3" style="list-style-type: decimal">
+<li>¿Cuáles son los 5 departamentos de Colombia con mayor densidad en
+1993 y en 2018?</li>
+</ol>
+<pre class="r"><code>tabla_departanebtos &lt;- pobxarea %&gt;%
+  group_by(dp, dpnom, ano) %&gt;%
+  summarise(
+    pob_total = sum(poblacion, na.rm = TRUE),
+    area_total = sum(mpio_narea, na.rm = TRUE),
+    .groups = &quot;drop&quot;
+  ) %&gt;%
+  mutate(densidad = pob_total / area_total)
+
+# Top 5 departamentos en 1993
+top_1993 &lt;- tabla_departanebtos %&gt;%
+  filter(ano == 1993) %&gt;%
+  arrange(desc(densidad)) %&gt;%
+  head(5)
+
+# Top 5 departamentos en 2018
+top_2018 &lt;- tabla_departanebtos %&gt;%
+  filter(ano == 2018) %&gt;%
+  arrange(desc(densidad)) %&gt;%
+  head(5)
+
+top_1993</code></pre>
+<pre><code>## # A tibble: 5 × 6
+##   dp    dpnom                        ano pob_total area_total densidad
+##   &lt;chr&gt; &lt;chr&gt;                      &lt;int&gt;     &lt;int&gt;      &lt;dbl&gt;    &lt;dbl&gt;
+## 1 11    Bogota, D.c.                1993   5064880     1623.     3121.
+## 2 88    Archipielago De San Andres  1993     54748       49.4    1108.
+## 3 08    Atlantico                   1993   1633482     3316.      493.
+## 4 63    Quindio                     1993    473486     1934.      245.
+## 5 66    Risaralda                   1993    778802     3557.      219.</code></pre>
+<pre class="r"><code>top_2018</code></pre>
+<pre><code>## # A tibble: 5 × 6
+##   dp    dpnom                        ano pob_total area_total densidad
+##   &lt;chr&gt; &lt;chr&gt;                      &lt;int&gt;     &lt;int&gt;      &lt;dbl&gt;    &lt;dbl&gt;
+## 1 11    Bogota, D.c.                2018   7088156     1623.     4368.
+## 2 88    Archipielago De San Andres  2018     59190       49.4    1198.
+## 3 08    Atlantico                   2018   2468888     3316.      745.
+## 4 63    Quindio                     2018    520502     1934.      269.
+## 5 66    Risaralda                   2018    902836     3557.      254.</code></pre>
+<ol start="4" style="list-style-type: decimal">
+<li>¿Cómo ha cambiado la distribución de la población municipal
+colombiana desde 1985? Puede realizar un análisis por cuartiles o
+percentiles con gráficos.</li>
+</ol>
+<pre class="r"><code># Primero calculamos percentiles o cuartiles por año
+cuartiles_poblacion &lt;- pobxarea %&gt;%
+  group_by(ano) %&gt;%
+  summarise(
+    Q1 = quantile(poblacion, 0.25, na.rm = TRUE),
+    Q2 = quantile(poblacion, 0.50, na.rm = TRUE),
+    Q3 = quantile(poblacion, 0.75, na.rm = TRUE),
+    P90 = quantile(poblacion, 0.90, na.rm = TRUE)
+  )
+
+print(cuartiles_poblacion)</code></pre>
+<pre><code>## # A tibble: 4 × 5
+##     ano    Q1    Q2     Q3    P90
+##   &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;
+## 1  1985 5617  11291 21462. 39180.
+## 2  1993 6042  11439 22319  40622.
+## 3  2005 6438. 12065 23745  49682 
+## 4  2018 6709  12988 27247  56426.</code></pre>
+<pre class="r"><code># Ahora un gráfico de boxplot para ver la distribución por año
+boxplot_g&lt;- ggplot(pobxarea, aes(x = factor(ano), y = poblacion)) +
+          geom_boxplot(fill = &quot;skyblue&quot;, color = &quot;black&quot;, outlier.alpha = 0.3) +
+          scale_y_log10() +  # Log para ver mejor la dispersión
+          labs(
+          title = &quot;Distribución de la población municipal en Colombia (1985-2018)&quot;, 
+            x = &quot;Año&quot;,
+            y = &quot;Población (escala logarítmica)&quot;
+               ) +
+                theme_minimal()
+print(boxplot_g)</code></pre>
+<pre><code>## Warning in scale_y_log10(): log-10 transformation introduced infinite values.</code></pre>
+<pre><code>## Warning: Removed 155 rows containing non-finite outside the scale range
+## (`stat_boxplot()`).</code></pre>
+<p><img role="img" src="data:image/png;base64,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" width="672" />
+La distribución de la población municipal en Colombia muestra un patrón
+estable en la mayoría de los municipios a lo largo del tiempo, pero con
+un aumento progresivo en los valores extremos (outliers).</p>
+<p>El rango intercuartílico (IQR) —la “caja” del boxplot— se mantiene
+relativamente similar entre 1985 y 2018, lo que indica que la mayoría de
+los municipios han tenido un crecimiento poblacional moderado y
+relativamente homogéneo.</p>
+<p>Sin embargo, se observa un incremento en la dispersión hacia arriba,
+especialmente a partir de 2005 y 2018: los municipios más poblados
+(outliers superiores) han crecido mucho más que el resto.</p>
+<p>Esto refleja un proceso de concentración urbana: mientras la mayoría
+de municipios permanecen pequeños o medianos, un grupo reducido de
+ciudades concentra cada vez una proporción mayor de la población.</p>
+<p>El uso de escala logarítmica confirma que existen fuertes
+desigualdades en el tamaño poblacional municipal, y que estas
+desigualdades se han intensificado con el tiempo.</p>
 </div>
 
 
