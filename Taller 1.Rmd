@@ -14,7 +14,8 @@ closeAllConnections()
 # --- Cargar librerías necesarias
 library("pacman")
 require("pacman")
-p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggplot2,openxlsx, writexl,sf,osmdata,dplyr)
+p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,
+        patchwork, ggplot2,openxlsx, writexl,sf,osmdata,dplyr)
 
 # --- Definir rutas
 user <- Sys.getenv("USERNAME")
@@ -435,7 +436,7 @@ ggplot(map_data) +
   theme(panel.grid = element_blank())
 
 ggsave(
-  filename = "outputs/3.1mapa_densidad_promedio_colombia.png", # ruta y nombre del archivo
+  filename = "stores/3.1mapa_densidad_promedio_colombia.png", # ruta y nombre del archivo
   plot = last_plot(),   # guarda el último gráfico generado
   width = 10,           # ancho en pulgadas
   height = 12,          # alto en pulgadas
@@ -462,13 +463,6 @@ print(pob_2)
 write_xlsx(pob_2,"stores/3.2 Crecimiento absoluto y porcentual1985-2018.xlsx")
 ```
 
-```{r Creimiento promedio}
-pobxarea <- full_join_db %>%
-  mutate(densidad = poblacion / mpio_narea)
-pobxarea
-write_xlsx(pobxarea,"stores/3.1 DensidadPoblacional.xlsx")
-```
-
 ```{r Mapa crecimientos }
 # 2) Normalizar llaves (5 dígitos) en ambas tablas: pob_2$dppmp y col_mpios$codmpio
 pob_2_key <- pob_2 %>%
@@ -490,9 +484,13 @@ map_data <- col_mpios_key %>%
   left_join(
     pob_2_key %>% select(dpmp, crec_absoluto, crec_porcentual),
     by = c("codmpio" = "dpmp")
+  ) %>%
+  mutate(
+    # Evitar infinitos/NaN cuando Pob_1985 = 0
+    crec_porcentual = ifelse(is.infinite(crec_porcentual) | is.nan(crec_porcentual), NA, crec_porcentual)
   )
 
-# 4) Mapa
+# 4) Mapa crecimiento absoluto
 ggplot(map_data) +
   geom_sf(aes(fill = crec_absoluto), color = NA) +
   scale_fill_viridis_c(
@@ -510,8 +508,34 @@ ggplot(map_data) +
 
 # --- Guardar en PNG -------------------------------------------------
 ggsave(
-  filename = "stores/mapas_crecimiento_1985_2018.png",
-  plot = p_combo, width = 14, height = 10, dpi = 300
+  filename = "stores/mapas_crecimiento_absoluto_1985_2018.png",
+  plot = last_plot(), width = 14, height = 10, dpi = 300
+)
+
+# 5) Mapa crecimiento porcentual
+lab_pct <- scales::percent_format(accuracy = 0.1, scale = 1)
+
+ggplot(map_data) +
+  geom_sf(aes(fill = crec_porcentual), color = NA) +
+  scale_fill_gradient2(
+    low = "#2C7BB6", mid = "grey95", high = "#D7191C",
+    midpoint = 0,
+    na.value = "grey85",
+    labels = lab_pct,
+    name = "Crec. %"
+  ) +
+  labs(
+    title = "Crecimiento porcentual por municipio en Colombia",
+    subtitle = "Variación 2018 vs 1985",
+    caption = "Nota: municipios con población 1985=0 se muestran como NA"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid = element_blank())
+
+# --- Guardar en PNG -------------------------------------------------
+ggsave(
+  "stores/mapa_crecimiento_porcentual_1985_2018.png",
+  plot = last_plot(), width = 10, height = 12, dpi = 300
 )
 ```
 
@@ -537,6 +561,103 @@ agg_departamento <- pobxarea %>%
   )
 ```
 
+```{r Mapa por departamento}
+agg_departamento_key <- agg_departamento %>%
+  mutate(
+    dp = as.character(dp),
+    dp = str_extract(dp, "\\d+"),
+    dp = str_pad(dp, width = 5, pad = "0")
+  )
+
+col_mpios_key <- col_mpios %>%
+  mutate(
+    dpto = as.character(dpto),
+    dpto = str_extract(dpto, "\\d+"),
+    dpto = str_pad(dpto, width = 5, pad = "0")
+  )
+
+# 3) Unir por codmpio (shape) = dppmp (tu data)
+map_data <- col_mpios_key %>%
+  left_join(
+    agg_departamento_key %>%
+      select(dp, densidad_1985, densidad_2018, crec_abs, crec_pct),
+    by = c("dpto" = "dp")
+  ) %>%
+  mutate(
+    # reemplaza Inf/NaN por NA
+    crec_pct = replace(crec_pct, !is.finite(crec_pct), NA_real_)
+  )
+
+# Crear map_dens y límites comunes robustos
+map_dens <- map_data %>%
+  mutate(
+    d85 = ifelse(is.finite(densidad_1985) & densidad_1985 > 0, densidad_1985, NA_real_),
+    d18 = ifelse(is.finite(densidad_2018) & densidad_2018 > 0, densidad_2018, NA_real_)
+  )
+
+lims <- range(c(map_dens$d85, map_dens$d18), na.rm = TRUE)
+
+# Si hubo todo NA/Inf o iguales, ajustamos
+if (!all(is.finite(lims))) {
+  # mete un 1 para evitar rango no finito (solo si todo estaba NA)
+  lims <- range(c(1, map_dens$d85, map_dens$d18), na.rm = TRUE)
+}
+if (diff(lims) == 0) {        # evita límites idénticos
+  lims <- lims + c(-0.5, 0.5)
+}
+
+# Etiquetador compatible según versión de 'scales'
+lab_num <- if (utils::packageVersion("scales") >= "1.2.0") {
+  scales::label_number(accuracy = 0.1)
+} else {
+  scales::comma_format(accuracy = 1)
+}
+
+# Mapas
+p85 <- ggplot(map_dens) +
+  geom_sf(aes(fill = d85), color = NA) +
+  scale_fill_viridis_c(
+    option = "magma",
+    trans = "log10",
+    limits = lims,                 # <= ojo: con "="
+    oob = scales::squish,          # valores fuera de rango, los “aprieta”
+    na.value = "grey90",
+    labels = lab_num,
+    name = "Hab/km²"
+  ) +
+  labs(title = "Densidad poblacional (1985)",
+       subtitle = "Habitantes por km² (escala log10)") +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid = element_blank())
+
+p18 <- ggplot(map_dens) +
+  geom_sf(aes(fill = d18), color = NA) +
+  scale_fill_viridis_c(
+    option = "magma",
+    trans = "log10",
+    limits = lims,                 # <= mismo rango para comparar
+    oob = scales::squish,
+    na.value = "grey90",
+    labels = lab_num,
+    name = "Hab/km²"
+  ) +
+  labs(title = "Densidad poblacional (2018)",
+       subtitle = "Habitantes por km² (escala log10)") +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid = element_blank())
+
+# Combinar y guardar
+if (!requireNamespace("patchwork", quietly = TRUE)) install.packages("patchwork")
+library(patchwork)
+
+p_combo <- p85 + p18 + plot_layout(ncol = 2, guides = "collect") &
+  theme(legend.position = "right")
+
+p_combo
+
+ggsave("stores/mapas_densidad_1985_2018.png", p_combo, width = 14, height = 10, dpi = 300)
+
+```
 
 ## Preguntas de indagación 
 
