@@ -573,6 +573,14 @@ if(!dir.exists("stores")) {
 write_xlsx(crecimiento_poblacional, "stores/crecimiento_poblacional.xlsx")
 rm(tabla_abs, tabla_pct,crecimiento_poblacional)
 ```
+- **Respuesta**:
+De acuerdo con los datos sobre el crecimiento absoluto, los municipios de Carmen del Darién, Algarrobo y Chachagui, con 
+19276, 16074 y 15282 personas respectivamente. Sin embargo ninguno de estos municipios es relevante por el lado del 
+crecimiento poblacion, donde municipio como Toribio, Puerto Gaitan y Suarez son los de mayor magnitud. Esto puede deberse
+a que estos municipios ya contaban con una poblacion considerable que hizo que en terminos porcentuales no se viera tan 
+grande este aumento poblacional entre 1985 y 2018. 
+
+
 
 2. ¿Cuáles son los 10 municipios de Colombia con mayor densidad en 1993 y en 2018?
 ```{r Pregunta 2 indagación}
@@ -596,6 +604,15 @@ den_2018 <- densidad_municipios %>%
 den_1993
 den_2018
 ```
+- **Respuesta**:
+Entre 1993 y 2018 los municipios de Itagüí, Soledad, Barranquilla, Medellín, Bogotá, Cali y Bucaramanga se presentan
+como los territorios con mayor densidad poblacional en Colombia. Esto es espcialmente relevante para el caso de Itagui
+y Atlantico dado a que presentan las mayores densidades, a pesar de no ser los principales municipios de sus
+departamentos, con Itagüí pasando de 8.331 a 13.416 hab/km² y Soledad de 4.396 a 9.916 hab/km². Asi mismo el caso de 
+Itagui y Soacha muestran como municipios cercanos a las ciudades capitales de sus departamento tambien presentan una 
+fuerte densidad poblacional que se mantiene a o largo del tiempo.
+
+
 
 3. ¿Cuáles son los 5 departamentos de Colombia con mayor densidad en 1993 y en 2018?
 ```{r Pregunta 3 indagación}
@@ -624,6 +641,18 @@ top_2018 <- tabla_departanebtos %>%
 top_1993
 top_2018
 ```
+- **Respuesta**:
+De las tablas para el año 1993 y 2018 se observa que los cinco departamentos con mayor densidad poblacional se mantienen
+constantes en ambos años. Esto muestra que existe una persistencia en la concentracion de la poblacion dentro de estos
+territorios. Siendo Bogotá, manteniendo su papel como ciudad capital, el lider como el el territorio más denso, con un
+aumento de más de 1.200 hab/km² en 25 años, reflejando su papel como centro económico y poblacional del pais. En seguida
+de Bogota, se observa como San Andres, Atlantico, Quindio y Risaralda respectivamente mantienen sus posiciones. No 
+obstante, el caso de San Andres es particular dado que, aunque se encuentra en segunda posición, esta se debe a que 
+mantiene densidades muy altas pese a su baja población, debido a su superficie reducida.
+
+
+
+
 4. ¿Cómo ha cambiado la distribución de la población municipal colombiana desde 1985? Puede realizar un análisis por cuartiles o percentiles con gráficos.
 ```{r Pregunta 4 indagación}
 
