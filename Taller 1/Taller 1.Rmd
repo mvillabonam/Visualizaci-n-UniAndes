@@ -1,0 +1,811 @@
+---
+title: "Taller 1 - Visualización y Exploración de bases de datos"
+author: " Henry Carvajal (201718787),Julian Delgado (201712798) , Mariana Villabona (201816559)"
+date: "Visualización y Exploración de datos para ciencias sociales"
+output: html_document
+---
+
+```{r Setup, include=FALSE}
+# --- Limpiar entorno
+rm(list = ls())
+gc()
+closeAllConnections()
+
+# --- Cargar librerías necesarias
+library("pacman")
+require("pacman")
+p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,
+        patchwork, ggplot2,openxlsx, writexl,sf,osmdata,dplyr)
+
+# --- Definir rutas
+user <- Sys.getenv("USERNAME")
+
+if (user == "judel") {
+  path <- file.path("C:/Users", "judel", "OneDrive", "Documentos", 
+                    "ANDES", "Semestre 3", "Visualizacion de datos", "Actividad 1")
+} else if (user == "mvill") {
+  path <- file.path("C:/Users", "mvill", "OneDrive", "Transitorio", "OneDrive", 
+                    "Documentos", "GitHub", "Visualizaci-n-UniAndes")
+} else if (user == "hncar") {
+  path <- file.path("C:/Users", "hncar", "Documents", "GitHub", "Visualizaci-n-UniAndes")
+} else {
+  path <- choose.dir(caption = "Selecciona la carpeta con los archivos")
+}
+
+setwd(path)
+
+# --- Cargar datos 
+file_area      <- file.path(path, "data/mun_area.csv")
+file_poblacion <- file.path(path, "data/pob_censal.xlsx")
+# Adicional para punto 3
+col_mpios <- st_read("data/shapes.shp", quiet = TRUE)
+
+mun_area   <- read_csv(file_area) %>% clean_names()
+pob_censal <- read_excel(file_poblacion, sheet = 1) %>% clean_names()
+```
+
+## Entendimiento de los datos
+
+1. Identifique y justifique la *unidad de observación* en cada tabla de datos 
+suministrados
+
+- **mun_area**: 
+  Este archivo es un documento en formato csv que permite guardar información en un  texto plano, 
+  donde los datos se guardan en filas y columnas separadas por comas u otro separador. Este 
+  formato permite guardar una gran cantidad de información ocupando menos espacio que un excel regular, 
+  además de ser compatible por muchos otros tipos de programa para lograr leerlos. Con respecto a los datos
+  que contiene, cada fila describe para un municipio en Colombia en un año específico, identificado por la llave única dpmp y la columna ano_creacion.
+  Este identificador corresponde al codigo DIVIPOLA, que es el sistema de codificacion de la division 
+  politica - administrativa de los departamentos y municipios en el territorio nacional, creado por el DANE.
+  Además, presenta información sobre su área, el departamento al que pertenece, el año en que fue creado. 
+
+- **pob_censal**: 
+  A diferencia del archivo anterior, este es un archivo xlsx que correponde al formato regular de los archivos excel.
+  Este permite observar los datos desde una hoja de datos, facilitando su visualizacion y manejo, aunque implicando un
+  mayor peso de almacenamiento Cada fila describe para un municipio en Colombia en un año específico, identificado por la llave única dpmp y la columna ano.
+  Esta llave tambien corresponde al codigo unico DIVIPOLA, por lo que desde este punto es importante asegurar que esta
+  columna este correctaente leida y con un formato correcto para poder realizar el cruce con la tabla mun-area.
+  Además, la tabla tambien presenta información sobre la población de dicho municipio, el departamento al que 
+  pertenece y su nombre; así cómo el año al que pertenece la información de población.
+
+```{r Resumen}
+summary(mun_area)
+summary(pob_censal)
+```
+
+2. Clasifique cada variable como identificación o medición; indique tipo y 
+formato.
+
+| Municipios                          | Población                           |
+|-------------------------------------|-------------------------------------|
+| ![](stores/2.mun_area.png){width=300px} | ![](stores/2.pob_censal.png){width=350px} |
+
+- **mun_area**: dp, dpmp  son tipo carácter mientras que mpio_narea y ano_creación tipo numérico (64 bits).}
+  Asi mismo, dp, dpmp y ano_creación son variables de identificación que guardan características especificas del 
+  municipio que representan y nos ayudan a diferenciarlas de los otros registros. Por otro lado, mpio_narea es una
+  variable de medición que permite comparar el área del municipio con respecto al de los demás y nos permite
+  clasificar los municipios por su tamaño o encontrar territorios con áreas similares.
+- **pob_censal**: dpnom, mpio  son tipo caracter mientras que dp, población, dpmp, ano son tipo numérico (64 bits). 
+  De forma similar a la tabla anterior, todas las variables con excepcion de "poblacion" son de tipo identificación
+  que diferencian cada registro entre si, mientras que población hace referencia a una variable numérica de medición
+  la cual nos dice cual es el número de habitantes de cada municipio en un año determinado, permitiendo analizar su   
+  distribución demográfica, comparar densidades poblacionales y estudiar la evolución de la población en el tiempo.
+
+```{r Tipo y formato}
+sapply(mun_area, class)
+sapply(pob_censal, class)
+```
+
+3. Proponga al menos 3 reglas mínimas de consistencia para asegurar la calidad de 
+los datos de las variables disponibles y que constituyen parte de la documentación 
+del ejercicio.
+
+- **Regla 1**: La variable dp debe ser igual para cualquier municipio entre las bases de datos. 
+  (Asumiendo que los municipios no se relocalizan sobre otros departamentos).
+- **Regla 2**: La población puede ser mayor o igual a cero para el año en que se reporta.
+- **Regla 3**: El área de un municipio debe siempre ser mayor a cero.
+- **Regla 4**: Los años con censo son: 1985,1993,2005 o 2018.
+
+
+## Preparación de los datos 
+
+1. Construya la llave única para la tabla de población (sugerencia: DPMP + AÑO).
+
+```{r 1. Preparación de datos y creación de llaves}
+# --- pob_censal ---
+pob_censal <- pob_censal %>%
+  mutate(
+    dpmp = sprintf("%05d", as.integer(dpmp)),   # código municipal 5 dígitos
+    dp   = sprintf("%02d", as.integer(dp)),     # código depto 2 dígitos
+    ano = as.integer(ano),
+    poblacion = as.integer(poblacion),
+    llave = paste0(dpmp, "_", ano)              # llave única
+  )
+
+if ("dpnom" %in% names(pob_censal)) {
+  pob_censal <- pob_censal %>%
+    mutate(dpnom = tolower(iconv(dpnom, from = "UTF-8", to = "ASCII//TRANSLIT")))
+}
+
+# --- mun_area ---
+mun_area <- mun_area %>%
+  rename(ano = ano_creacion) %>%   # renombrar columna
+  mutate(
+    dpmp = sprintf("%05d", as.integer(dpmp)),
+    dp   = sprintf("%02d", as.integer(dp)),
+    ano  = as.integer(ano),             # ahora ya está como ano
+    llave = paste0(dpmp, "_", ano)      # misma llave que pob_censal
+  )
+```
+
+2. Verifique duplicados; reporte conteos y la decisión de tratamiento. 
+- **Respuesta**: Dado que no se presentan duplicados o valores vacíos, no se aplica tratamiento.
+
+```{r 2. Duplicados y vacíos}
+# --- Verificar valores vacíos
+cat("\n--- Número de NA's por columna en mun_area ---\n")
+sapply(pob_censal, function(x) sum(is.na(x)))
+cat("\n--- Número de NA's por columna en pob_censal ---\n")
+sapply(mun_area, function(x) sum(is.na(x)))
+
+# --- Verificar duplicados
+
+# --- Población censal ---
+duplicados_pob <- pob_censal %>% count(llave) %>% filter(n > 1)
+
+cat("\n>>> Verificación de duplicados en pob_censal <<<\n")
+if (nrow(duplicados_pob) > 0) { print(duplicados_pob)} else { cat("No se encontraron duplicados en pob_censal.\n")}
+
+# --- Municipios / áreas ---
+duplicados_area <- mun_area %>% count(llave) %>% filter(n > 1)
+
+cat("\n>>> Verificación de duplicados en mun_area <<<\n")
+if (nrow(duplicados_area) > 0) { print(duplicados_area)
+} else { cat("No se encontraron duplicados en mun_area.\n") }
+
+rm(duplicados_pob, duplicados_area)
+```
+
+3. Explique qué tipo de unión tendrían las tablas disponibles y por qué.
+
+- **Respuesta**: Si no quisiéramos perder nada de información 
+ debería realizarse un outer join usando la llave (código municipio + año) creada anteriormente. El outer join es la manera en la
+  que preservamos más información sobre los municipios en cada año dado que este tipo de union busca mantener 
+  todos los datos de ambas tablas a relacionar, sin darle importancia a que la llave buscada se encuentre en 
+  ambas tablas.
+  
+  En nuestro caso, dado que las bases de datos solo comparten los años 1985 y 1993; pero comparten casi todos los       
+  municipios (exceptuando el 94663 solo disponible en población censal) podemos tener una base de datos única que 
+  contemple toda la información disponible en pob_censal y se complemente con información relacionada al área del
+  municipio para los años disponibles. 
+  
+  A nuestra consideración considerando que solo comparten 17 observaciones (Municipios y años comunes)
+  podría ser de interés solo preservar la data de población censal y agregar, para los años 
+  disponibles, el área de los 17 municipios en común. Lo anterior puede realizarse con un 
+  left join o right join, dependiendo de cual tabla queramos mantener como la "principal" o la
+  tabla maestra.
+  
+  Además, procuramos preservar el formato long dado que este formato favorece la manipulación
+  de la información para el análisis descriptivo. 
+
+```{r 3. Análisis unión, echo=FALSE, message=FALSE}
+# ==========================================================
+# Comparación de años
+# ==========================================================
+anos_pob   <- sort(unique(pob_censal$ano))
+anos_area  <- sort(unique(mun_area$ano))
+
+anos_comunes    <- intersect(anos_pob, anos_area)
+anos_solo_pob   <- setdiff(anos_pob, anos_area)
+anos_solo_area  <- setdiff(anos_area, anos_pob)
+
+cat("\n>>> Comparación de AÑOS <<<\n")
+#cat("Años en pob_censal:", anos_pob, "\n")
+#cat("Años en mun_area:", anos_area, "\n")
+cat("Años en común:", anos_comunes, "\n")
+cat("Años SOLO en pob_censal:", anos_solo_pob, "\n")
+cat("Años SOLO en mun_area:", anos_solo_area, "\n")
+
+rm(anos_pob,anos_area,anos_comunes,anos_solo_pob,anos_solo_area)
+
+# ==========================================================
+# Comparación de municipios (dpmp)
+# ==========================================================
+dpmp_pob  <- sort(unique(pob_censal$dpmp))
+dpmp_area <- sort(unique(mun_area$dpmp))
+
+dpmp_comunes   <- intersect(dpmp_pob, dpmp_area)
+dpmp_solo_pob  <- setdiff(dpmp_pob, dpmp_area)
+dpmp_solo_area <- setdiff(dpmp_area, dpmp_pob)
+
+cat("\n>>> Comparación de MUNICIPIOS (dpmp) <<<\n")
+#cat("Municipios en pob_censal:", length(dpmp_pob), "\n")
+#cat("Municipios en mun_area:", length(dpmp_area), "\n")
+cat("Municipios en común:", length(dpmp_comunes), "\n")
+cat("Municipios SOLO en pob_censal:", length(dpmp_solo_pob), "\n")
+cat("Municipios SOLO en mun_area:", length(dpmp_solo_area), "\n")
+
+# Opcional: mostrar ejemplos de los que no coinciden
+if (length(dpmp_solo_pob) > 0) {
+  cat("\nEjemplos de dpmp SOLO en pob_censal:\n")
+  print(head(dpmp_solo_pob))
+}
+if (length(dpmp_solo_area) > 0) {
+  cat("\nEjemplos de dpmp SOLO en mun_area:\n")
+  print(head(dpmp_solo_area))
+}
+
+rm(dpmp_pob,dpmp_area,dpmp_comunes,dpmp_solo_pob,dpmp_solo_area)
+
+# ==========================================================
+# Comparación llaves en común
+# ==========================================================
+llaves_pob   <- sort(unique(pob_censal$llave))
+llaves_area  <- sort(unique(mun_area$llave))
+
+llaves_comunes    <- intersect(llaves_pob, llaves_area)
+llaves_solo_pob   <- setdiff(llaves_pob, llaves_area)
+llave_solo_area  <- setdiff(llaves_area, llaves_pob)
+
+cat("\n>>> Comparación de Llaves (dpmp+año) <<<\n")
+cat("Llaves en común:", length(llaves_comunes), "\n")
+
+rm(llaves_pob,llaves_area,llaves_comunes,llaves_solo_pob,llave_solo_area)
+```
+
+4. Asegure tipos de datos correctos de acuerdo con las reglas que identificó previamente ( e.g.
+DP, DPMP caracteres que pueden iniciar con “0”; Población entera).
+
+- **Respuesta**: En el punto 1 de esta sección (Preparación de los datos), también nos encargamos
+  de homogenizar la información sobre la scolumnas comunes. El filtro a continuación busca los datos 
+  negativos en población y área, en caso de no encontrar imprime "No hay población negativa". 
+
+```{r Checks por variable, echo=FALSE, message=FALSE}
+# --- población
+pob_neg <- pob_censal %>% filter(poblacion < 0 | is.na(poblacion))
+
+if (nrow(pob_neg) > 0) {
+  cat("⚠ Hay registros con población negativa o NA:\n")
+  print(pob_neg)
+} else {
+  cat("No hay población negativa.\n")
+}
+
+# --- área
+if ("area" %in% names(mun_area)) {
+  area_ceros <- mun_area %>% filter(area <= 0 | is.na(area))
+  if (nrow(area_ceros) > 0) {
+    cat("⚠ Hay registros con área <= 0 o NA:\n")
+    print(area_ceros)
+  } else {
+    cat("No hay áreas menores o iguales a 0.\n")
+  }
+}
+
+# --- tipo de variables (deben coincidir las que son comunes)
+sapply(mun_area, class)
+sapply(pob_censal, class)
+
+```
+
+5. Detecte datos faltantes y decida su tratamiento, si es necesario en el contexto de este ejercicio.
+
+- **Respuesta**: Dado que aún no hemos realizado la unión de las bases de datos; aún no es necesario el manejo de valores faltantes
+
+6. Estandarice nombres (mayúsculas/acentos) en DPNOM y MPIO, si es necesario.
+
+- **Respuesta**: Se estandarizan los municipios y departamentos cómo nombres propios. 
+
+
+```{r Estandarizacion}
+# Departamentos únicos
+unique(pob_censal$dpnom)
+
+# Municipios únicos
+unique(pob_censal$mpio)
+
+# Estandarizacion de las columna dpnom y mpio
+pob_censal$dpnom <- pob_censal$dpnom %>%
+  str_trim() %>%                                # quitar espacios al inicio/final
+  str_to_title() %>%                            # pasar a minúsculas
+  iconv(from = "UTF-8", to = "ASCII//TRANSLIT") # quitar tildes
+
+pob_censal$mpio <- pob_censal$mpio %>%
+  str_trim() %>%
+  str_to_title() %>%
+  iconv(from = "UTF-8", to = "ASCII//TRANSLIT")
+```
+
+
+7. A partir de la estructura larga de la tabla población (AÑO en columna), cree una versión
+ancha con columnas Pob_1985, Pob_1993, Pob_2005, Pob_2018 y guárdela en un nuevo
+archivo.
+
+```{r Tabla ancha}
+pob_censal_ancha <- pob_censal %>%
+  pivot_wider(
+    id_cols = c(dp, dpnom, dpmp, mpio),     
+    names_from = ano,                        
+    values_from = poblacion,                 
+    names_prefix = "Pob_"                    
+  )
+write.xlsx(pob_censal_ancha,"stores/2.7Poblacion_censal_ancha.xsx")
+```
+
+8. Explique cuándo trabajar en largo vs. en ancho para las operaciones siguientes.
+
+- **Respuesta**: 
+
+La decisión de trabajar los datos en formato largo (long) o ancho (wide) depende del tipo de operación que se quiera ejecutar. Al realizar una unión con otra tabla no habría mayor diferencia entre usar uno u otro formato, ya que las columnas que se expanden en el formato ancho (en este caso la población) no intervienen en el cruce de las tablas.
+No obstante, para fines de visualización, el formato ancho permite una comparación rápida de los valores entre diferentes años dentro de un mismo municipio o entre municipios distintos.
+
+Por otro lado, al realizar cálculos que requieren relacionar una variable con otra (por ejemplo, población respecto al área), el formato largo suele ser más recomendable, ya que permite trabajar con todos los valores de población independientemente del año en una sola columna. En cambio, en el formato ancho sería necesario tomar cada valor de población por año y repetir la operación para cada columna.
+
+Sin embargo, cuando se trata de comparar valores entre años específicos, como el cálculo del crecimiento poblacional entre dos censos, el formato ancho puede resultar más beneficioso, ya que basta con operar directamente entre las columnas correspondientes a cada año. En formato largo, este tipo de comparación requeriría más pasos intermedios o incluso generar una tabla auxiliar donde se almacenen los resultados.
+
+
+## Integración de tablas (join), validaciones y cálculos
+
+1. Realice la unión de las tablas población (largo) con mun_area.csv
+
+```{r cruce de los datos}
+# Opción 1. Hacer un left-join usando la población poblacional. (Agrega área para 17 municipios)
+pobxarea <- pob_censal %>%
+  left_join(mun_area, by = c("dp", "dpmp","ano","llave"))
+summary(pobxarea)
+
+# Opción 2. Hacer un outer-join (full join) pero SOLO utilizando los departamentos y los códigos de los municipios. De forma tal que se impute la misma área para cualquier año. (Asumiendo que no cambia en el tiempo)
+
+full_join_db <- pob_censal %>%
+  full_join(mun_area, by = c("dp", "dpmp")) %>%
+  select(-ends_with(".y")) %>%
+  rename_with(~ sub("\\.x$", "", .x), ends_with(".x"))
+summary(full_join_db)
+```
+
+
+2. Reporte registros sin correspondencia en ambas direcciones.
+
+- **Respuesta**: 
+
+Se observa que al momento de realizar la unión tipo left a partir de las llaves únicamente coinciden 17 regitros. Lo anterior porque no comparten información sobre el mismo año. Siendo así, los valores faltantes para la columna que describe el área son 4471. 
+
+Sin embargo, si realizamos una unión completa (full join), solo a partir de las columnas departamento y código de municipio (dp y dpmp), asumiendo que el área es constante a través del tiempo, se observa que únicamente 4 registros de área quedan en valor vacío: esto es, la información para todos los años asociada al municipio dpmp 9466 (Mapiripana). 
+
+```{r Valores faltantes}
+faltantes_en_pob_censal <- pob_censal %>%
+  anti_join(mun_area, by = c("dp", "dpmp"))
+
+faltantes_en_area <- mun_area %>%
+  anti_join(pob_censal, by = c("dp", "dpmp"))
+faltantes_en_pob_censal
+
+```
+
+3. Documente la cardinalidad (muchos-a-uno) y cómo evita relaciones muchos-a-muchos.
+
+- **Respuesta**: Para el left-join la relación es de uno a uno, pues al unir las bases de datos a partir de una llave única (la combinación del código del
+municipio y el año) solo se agrega información para filas que comparten la misma unidad de observación. Ahora bien, para la unión mediante full-join; dado que realizamos la unión de la base de datos a partir de la cardinalidad "uno a muchos" en tanto, al unir únicamente mediante departamento y código de municipio, se asignó el área de los municipios sin importar el año al que se estuviera haciendo referencia. Lo anterior se realizó bajo el supuesto de que el área asignada a cada municipio no varía en función del tiempo.  
+
+## Calculos de interes
+1, Densidad poblacional = Población / MPIO_NAREA.
+```{r Densidad poblacional}
+pobxarea <- full_join_db %>%
+  mutate(densidad = poblacion / mpio_narea)
+pobxarea
+write_xlsx(pobxarea,"stores/3.1 DensidadPoblacional.xlsx")
+```
+```{r Mapa para gráfico}
+# 2) Normalizar llaves (5 dígitos) en ambas tablas: pobxarea$dppmp y col_mpios$codmpio
+pobxarea_key <- pobxarea %>%
+  mutate(
+    dpmp = as.character(dpmp),
+    dpmp = str_extract(dpmp, "\\d+"),
+    dpmp = str_pad(dpmp, width = 5, pad = "0")
+  )
+
+col_mpios_key <- col_mpios %>%
+  mutate(
+    codmpio = as.character(mpios),
+    codmpio = str_extract(mpios, "\\d+"),
+    codmpio = str_pad(mpios, width = 5, pad = "0")
+  )
+
+# 3) Unir por codmpio (shape) = dppmp (tu data)
+map_data <- col_mpios_key %>%
+  left_join(
+    pobxarea_key %>% select(dpmp, densidad),
+    by = c("codmpio" = "dpmp")
+  )
+
+# 4) Mapa
+ggplot(map_data) +
+  geom_sf(aes(fill = densidad), color = NA) +
+  scale_fill_viridis_c(
+    option = "magma",
+    trans = "log10",
+    na.value = "grey90",
+    labels = scales::label_number(accuracy = 0.1)
+  ) +
+  labs(
+    title = "Densidad poblacional promedio por municipio en Colombia",
+    subtitle = "Habitantes por km² (escala log10)",
+    fill = "Hab/km²"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid = element_blank())
+
+ggsave(
+  filename = "stores/3.1mapa_densidad_promedio_colombia.png", # ruta y nombre del archivo
+  plot = last_plot(),   # guarda el último gráfico generado
+  width = 10,           # ancho en pulgadas
+  height = 12,          # alto en pulgadas
+  dpi = 300             # resolución (buena calidad para informes)
+)
+```
+
+2. Crecimiento absoluto 1985→2018 y crecimiento porcentual 1985→2018 por municipio.
+```{r Crecimiento poblacional}
+pob_2 <- pobxarea %>%
+  filter(ano %in% c(1985, 2018)) %>%
+  select(dp, dpnom, dpmp, mpio, ano, poblacion) %>%
+  pivot_wider(
+    names_from = ano,
+    values_from = poblacion,
+    names_prefix = "Pob_"
+  ) %>%
+  mutate(
+    crec_absoluto = Pob_2018 - Pob_1985,
+    crec_porcentual = (Pob_2018 - Pob_1985) / Pob_1985 * 100
+  )
+print(pob_2)
+
+write_xlsx(pob_2,"stores/3.2 Crecimiento absoluto y porcentual1985-2018.xlsx")
+```
+
+```{r Mapa crecimientos }
+# 2) Normalizar llaves (5 dígitos) en ambas tablas: pob_2$dppmp y col_mpios$codmpio
+pob_2_key <- pob_2 %>%
+  mutate(
+    dpmp = as.character(dpmp),
+    dpmp = str_extract(dpmp, "\\d+"),
+    dpmp = str_pad(dpmp, width = 5, pad = "0")
+  )
+
+col_mpios_key <- col_mpios %>%
+  mutate(
+    codmpio = as.character(mpios),
+    codmpio = str_extract(mpios, "\\d+"),
+    codmpio = str_pad(mpios, width = 5, pad = "0")
+  )
+
+# 3) Unir por codmpio (shape) = dppmp (tu data)
+map_data <- col_mpios_key %>%
+  left_join(
+    pob_2_key %>% select(dpmp, crec_absoluto, crec_porcentual),
+    by = c("codmpio" = "dpmp")
+  ) %>%
+  mutate(
+    # Evitar infinitos/NaN cuando Pob_1985 = 0
+    crec_porcentual = ifelse(is.infinite(crec_porcentual) | is.nan(crec_porcentual), NA, crec_porcentual)
+  )
+
+# 4) Mapa crecimiento absoluto
+ggplot(map_data) +
+  geom_sf(aes(fill = crec_absoluto), color = NA) +
+  scale_fill_viridis_c(
+    option = "magma",
+    trans = "log10",
+    na.value = "grey90",
+    labels = scales::label_number(accuracy = 0.1)
+  ) +
+  labs(
+    title = "Crecimiento absoluto municipio en Colombia",
+    subtitle = "(escala log10)",
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid = element_blank())
+
+# --- Guardar en PNG -------------------------------------------------
+ggsave(
+  filename = "stores/mapas_crecimiento_absoluto_1985_2018.png",
+  plot = last_plot(), width = 14, height = 10, dpi = 300
+)
+
+# 5) Mapa crecimiento porcentual
+lab_pct <- scales::percent_format(accuracy = 0.1, scale = 1)
+
+ggplot(map_data) +
+  geom_sf(aes(fill = crec_porcentual), color = NA) +
+  scale_fill_gradient2(
+    low = "#2C7BB6", mid = "grey95", high = "#D7191C",
+    midpoint = 0,
+    na.value = "grey85",
+    labels = lab_pct,
+    name = "Crec. %"
+  ) +
+  labs(
+    title = "Crecimiento porcentual por municipio en Colombia",
+    subtitle = "Variación 2018 vs 1985",
+    caption = "Nota: municipios con población 1985=0 se muestran como NA"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid = element_blank())
+
+# --- Guardar en PNG -------------------------------------------------
+ggsave(
+  "stores/mapa_crecimiento_porcentual_1985_2018.png",
+  plot = last_plot(), width = 10, height = 12, dpi = 300
+)
+```
+
+3. Agregación por departamento (DP) para densidad y crecimiento (aclare la definición usada).
+```{r Agregacion}
+agg_departamento <- pobxarea %>%
+  filter(ano %in% c(1985, 2018)) %>%
+  group_by(dp, dpnom, ano) %>%
+  summarise(
+    pob_total = sum(poblacion, na.rm = TRUE),
+    area_total = sum(mpio_narea, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(densidad = pob_total / area_total) %>%
+  pivot_wider(
+    names_from = ano,
+    values_from = c(pob_total, densidad),
+    names_sep = "_"
+  ) %>%
+  mutate(
+    crec_abs = pob_total_2018 - pob_total_1985,
+    crec_pct = (pob_total_2018 - pob_total_1985) / pob_total_1985 * 100
+  )
+```
+
+```{r Mapa por departamento}
+agg_departamento_key <- agg_departamento %>%
+  mutate(
+    dp = as.character(dp),
+    dp = str_extract(dp, "\\d+"),
+    dp = str_pad(dp, width = 5, pad = "0")
+  )
+
+col_mpios_key <- col_mpios %>%
+  mutate(
+    dpto = as.character(dpto),
+    dpto = str_extract(dpto, "\\d+"),
+    dpto = str_pad(dpto, width = 5, pad = "0")
+  )
+
+# 3) Unir por codmpio (shape) = dppmp (tu data)
+map_data <- col_mpios_key %>%
+  left_join(
+    agg_departamento_key %>%
+      select(dp, densidad_1985, densidad_2018, crec_abs, crec_pct),
+    by = c("dpto" = "dp")
+  ) %>%
+  mutate(
+    # reemplaza Inf/NaN por NA
+    crec_pct = replace(crec_pct, !is.finite(crec_pct), NA_real_)
+  )
+
+# Crear map_dens y límites comunes robustos
+map_dens <- map_data %>%
+  mutate(
+    d85 = ifelse(is.finite(densidad_1985) & densidad_1985 > 0, densidad_1985, NA_real_),
+    d18 = ifelse(is.finite(densidad_2018) & densidad_2018 > 0, densidad_2018, NA_real_)
+  )
+
+lims <- range(c(map_dens$d85, map_dens$d18), na.rm = TRUE)
+
+# Si hubo todo NA/Inf o iguales, ajustamos
+if (!all(is.finite(lims))) {
+  # mete un 1 para evitar rango no finito (solo si todo estaba NA)
+  lims <- range(c(1, map_dens$d85, map_dens$d18), na.rm = TRUE)
+}
+if (diff(lims) == 0) {        # evita límites idénticos
+  lims <- lims + c(-0.5, 0.5)
+}
+
+# Etiquetador compatible según versión de 'scales'
+lab_num <- if (utils::packageVersion("scales") >= "1.2.0") {
+  scales::label_number(accuracy = 0.1)
+} else {
+  scales::comma_format(accuracy = 1)
+}
+
+# Mapas
+p85 <- ggplot(map_dens) +
+  geom_sf(aes(fill = d85), color = NA) +
+  scale_fill_viridis_c(
+    option = "magma",
+    trans = "log10",
+    limits = lims,                 # <= ojo: con "="
+    oob = scales::squish,          # valores fuera de rango, los “aprieta”
+    na.value = "grey90",
+    labels = lab_num,
+    name = "Hab/km²"
+  ) +
+  labs(title = "Densidad poblacional (1985)",
+       subtitle = "Habitantes por km² (escala log10)") +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid = element_blank())
+
+p18 <- ggplot(map_dens) +
+  geom_sf(aes(fill = d18), color = NA) +
+  scale_fill_viridis_c(
+    option = "magma",
+    trans = "log10",
+    limits = lims,                 # <= mismo rango para comparar
+    oob = scales::squish,
+    na.value = "grey90",
+    labels = lab_num,
+    name = "Hab/km²"
+  ) +
+  labs(title = "Densidad poblacional (2018)",
+       subtitle = "Habitantes por km² (escala log10)") +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid = element_blank())
+
+# Combinar y guardar
+if (!requireNamespace("patchwork", quietly = TRUE)) install.packages("patchwork")
+library(patchwork)
+
+p_combo <- p85 + p18 + plot_layout(ncol = 2, guides = "collect") &
+  theme(legend.position = "right")
+
+p_combo
+
+ggsave("stores/mapas_densidad_1985_2018.png", p_combo, width = 14, height = 10, dpi = 300)
+
+```
+
+## Preguntas de indagación 
+
+1. ¿¿Cuáles son los 20 municipios de Colombia con mayor crecimiento poblacional desde 1985? Absoluto y porcentual
+```{r Pregunta 1 indagación}
+crecimiento_poblacional <- full_join_db %>%
+  group_by(mpio) %>%
+  summarise(
+    pob_1985 = sum(poblacion[ano == 1985], na.rm = TRUE),
+    pob_2018 = sum(poblacion[ano == 2018], na.rm = TRUE)
+  ) %>%
+  mutate(
+    crecimiento_abs = pob_2018 - pob_1985,
+    crecimiento_pct = (pob_2018 / pob_1985 - 1) * 100
+  ) %>%
+  arrange(desc(crecimiento_pct))
+
+tabla_abs <- crecimiento_poblacional %>% # Tabla primeros 20 crecimiento absoluto
+  select(mpio, crecimiento_abs) %>%
+  head(20)
+
+tabla_pct <- crecimiento_poblacional %>%  # Tabla primeros 20 crecimiento porcentual
+  filter(is.finite(crecimiento_pct)) %>%   # quita Inf, -Inf y NaN
+  select(mpio, crecimiento_pct) %>%
+  slice_max(order_by = crecimiento_pct, n = 20, with_ties = FALSE)
+
+tabla_abs
+tabla_pct
+
+# Guardar en Excel
+if(!dir.exists("stores")) {
+  dir.create("stores")
+}
+write_xlsx(crecimiento_poblacional, "stores/crecimiento_poblacional.xlsx")
+rm(tabla_abs, tabla_pct,crecimiento_poblacional)
+```
+- **Respuesta**:
+De acuerdo con los datos sobre el crecimiento absoluto, los municipios de Carmen del Darién, Algarrobo y Chachagui, con 
+19276, 16074 y 15282 personas respectivamente. Sin embargo ninguno de estos municipios es relevante por el lado del 
+crecimiento poblacion, donde municipio como Toribio, Puerto Gaitan y Suarez son los de mayor magnitud. Esto puede deberse
+a que estos municipios ya contaban con una poblacion considerable que hizo que en terminos porcentuales no se viera tan 
+grande este aumento poblacional entre 1985 y 2018. 
+
+
+
+2. ¿Cuáles son los 10 municipios de Colombia con mayor densidad en 1993 y en 2018?
+```{r Pregunta 2 indagación}
+densidad_municipios <- full_join_db %>%
+  group_by(mpio) %>%
+  summarise(
+    den_1993 = sum(poblacion[ano == 1993], na.rm = TRUE)/ sum(mpio_narea[ano == 1993], na.rm = TRUE),
+    den_2018 = sum(poblacion[ano == 2018], na.rm = TRUE)/ sum(mpio_narea[ano == 2018], na.rm = TRUE)
+  ) 
+
+den_1993 <- densidad_municipios %>%
+  arrange(desc(den_1993)) %>%
+  select(mpio, den_1993) %>%
+  head(10)
+
+den_2018 <- densidad_municipios %>%
+  arrange(desc(den_2018)) %>%
+  select(mpio, den_2018) %>%
+  head(10)
+
+den_1993
+den_2018
+```
+- **Respuesta**:
+Entre 1993 y 2018 los municipios de Itagüí, Soledad, Barranquilla, Medellín, Bogotá, Cali y Bucaramanga se presentan
+como los territorios con mayor densidad poblacional en Colombia. Esto es espcialmente relevante para el caso de Itagui
+y Atlantico dado a que presentan las mayores densidades, a pesar de no ser los principales municipios de sus
+departamentos, con Itagüí pasando de 8.331 a 13.416 hab/km² y Soledad de 4.396 a 9.916 hab/km². Asi mismo el caso de 
+Itagui y Soacha muestran como municipios cercanos a las ciudades capitales de sus departamento tambien presentan una 
+fuerte densidad poblacional que se mantiene a o largo del tiempo.
+
+
+3. ¿Cuáles son los 5 departamentos de Colombia con mayor densidad en 1993 y en 2018?
+```{r Pregunta 3 indagación}
+
+tabla_departanebtos <- pobxarea %>%
+  group_by(dp, dpnom, ano) %>%
+  summarise(
+    pob_total = sum(poblacion, na.rm = TRUE),
+    area_total = sum(mpio_narea, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(densidad = pob_total / area_total)
+
+# Top 5 departamentos en 1993
+top_1993 <- tabla_departanebtos %>%
+  filter(ano == 1993) %>%
+  arrange(desc(densidad)) %>%
+  head(5)
+
+# Top 5 departamentos en 2018
+top_2018 <- tabla_departanebtos %>%
+  filter(ano == 2018) %>%
+  arrange(desc(densidad)) %>%
+  head(5)
+
+top_1993
+top_2018
+```
+- **Respuesta**:
+De las tablas para el año 1993 y 2018 se observa que los cinco departamentos con mayor densidad poblacional se mantienen
+constantes en ambos años. Esto muestra que existe una persistencia en la concentracion de la poblacion dentro de estos
+territorios. Siendo Bogotá, manteniendo su papel como ciudad capital, el lider como el el territorio más denso, con un
+aumento de más de 1.200 hab/km² en 25 años, reflejando su papel como centro económico y poblacional del pais. En seguida
+de Bogota, se observa como San Andres, Atlantico, Quindio y Risaralda respectivamente mantienen sus posiciones. No 
+obstante, el caso de San Andres es particular dado que, aunque se encuentra en segunda posición, esta se debe a que 
+mantiene densidades muy altas pese a su baja población, debido a su superficie reducida.
+
+
+
+
+4. ¿Cómo ha cambiado la distribución de la población municipal colombiana desde 1985? Puede realizar un análisis por cuartiles o percentiles con gráficos.
+```{r Pregunta 4 indagación}
+
+# Primero calculamos percentiles o cuartiles por año
+cuartiles_poblacion <- pobxarea %>%
+  group_by(ano) %>%
+  summarise(
+    Q1 = quantile(poblacion, 0.25, na.rm = TRUE),
+    Q2 = quantile(poblacion, 0.50, na.rm = TRUE),
+    Q3 = quantile(poblacion, 0.75, na.rm = TRUE),
+    P90 = quantile(poblacion, 0.90, na.rm = TRUE)
+  )
+
+print(cuartiles_poblacion)
+
+# Ahora un gráfico de boxplot para ver la distribución por año
+boxplot_g<- ggplot(pobxarea, aes(x = factor(ano), y = poblacion)) +
+          geom_boxplot(fill = "skyblue", color = "black", outlier.alpha = 0.3) +
+          scale_y_log10() +  # Log para ver mejor la dispersión
+          labs(
+          title = "Distribución de la población municipal en Colombia (1985-2018)", 
+            x = "Año",
+            y = "Población (escala logarítmica)"
+               ) +
+                theme_minimal()
+print(boxplot_g)
+```
+La distribución de la población municipal en Colombia muestra un patrón estable en la mayoría de los municipios a lo largo del tiempo, pero con un aumento progresivo en los valores extremos (outliers).
+
+El rango intercuartílico (IQR) —la “caja” del boxplot— se mantiene relativamente similar entre 1985 y 2018, lo que indica que la mayoría de los municipios han tenido un crecimiento poblacional moderado y relativamente homogéneo.
+
+Sin embargo, se observa un incremento en la dispersión hacia arriba, especialmente a partir de 2005 y 2018: los municipios más poblados (outliers superiores) han crecido mucho más que el resto.
+
+Esto refleja un proceso de concentración urbana: mientras la mayoría de municipios permanecen pequeños o medianos, un grupo reducido de ciudades concentra cada vez una proporción mayor de la población.
+
+El uso de escala logarítmica confirma que existen fuertes desigualdades en el tamaño poblacional municipal, y que estas desigualdades se han intensificado con el tiempo.
