@@ -129,5 +129,55 @@ resumen_multi <- data_encuesta_long %>%
   arrange(pregunta, desc(conteo))
 
 ```
+```{r Observacion de Variables relacionadas con el acceso al sistema financiero}
+# --- 1. Hogares sin productos financieros
+hogares_sin_finanzas <- data_filtrada %>%
+  filter(mediosvida7_mediosvida7_ninguno == 1) %>%
+  pull(id_hogar)
+
+# --- 2. Filtrar dificultades de emprendimiento (mediosvida9b)
+dificultades_emprend <- data_encuesta_long %>%
+  filter(pregunta == "mediosvida9b",
+         id_hogar %in% hogares_sin_finanzas,
+         respuesta %in% c("credito", "docu_mentacion"))
+
+# --- 3. Resumen comparativo
+resumen_dificultades <- dificultades_emprend %>%
+  count(respuesta, name = "conteo") %>%
+  arrange(desc(conteo))
+
+print(resumen_dificultades)
+
+# --- 4. Gráfico comparativo
+ggplot(resumen_dificultades, aes(x = respuesta, y = conteo, fill = respuesta)) +
+  geom_col() +
+  labs(title = "Dificultades para emprender en hogares sin productos financieros",
+       x = "Tipo de dificultad",
+       y = "Frecuencia (número de hogares)") +
+  theme_minimal()
+
+```
+```{r Observacion de Variables relacionadas con el acceso al sistema financiero}
+total_hogares_sin_fin <- length(unique(hogares_sin_finanzas))
+
+resumen_dificultades_prop <- resumen_dificultades %>%
+  mutate(proporcion = conteo / total_hogares_sin_fin * 100)
+
+print(resumen_dificultades_prop)
+
+# --- Gráfico con proporciones
+ggplot(resumen_dificultades_prop, aes(x = respuesta, y = proporcion, fill = respuesta)) +
+  geom_col() +
+  labs(title = "Dificultades para emprender en hogares sin productos financieros",
+       x = "Tipo de dificultad",
+       y = "Porcentaje de hogares (%)") +
+  theme_minimal()
+
+
+```
+
+
+
+
 
 
