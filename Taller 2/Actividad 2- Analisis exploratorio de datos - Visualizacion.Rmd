@@ -96,10 +96,6 @@ data_filtrada <- data_bogota %>%
 table(data_filtrada$demo3)
 ```
 
-```{r Numero de registros con Jefe de Hogar}
-table(data_filtrada$demo3)
-```
-
 ```{r Respuesta con valores de 0 y 1 para multiples opciones}
 # --- 1. Preguntas de opción múltiple (prefijos)
 preg_multi <- c("demo23", "proteccion1006", "proteccion1007",
@@ -129,6 +125,11 @@ resumen_multi <- data_encuesta_long %>%
   arrange(pregunta, desc(conteo))
 
 ```
+
+```{r Cuantas preguntas de medios de vida selecciono cada hogar}
+table(data_filtrada$demo3)
+```
+
 ```{r Observacion de Variables relacionadas con el acceso al sistema financiero}
 # --- 1. Hogares sin productos financieros
 hogares_sin_finanzas <- data_filtrada %>%
@@ -141,43 +142,70 @@ dificultades_emprend <- data_encuesta_long %>%
          id_hogar %in% hogares_sin_finanzas,
          respuesta %in% c("credito", "docu_mentacion"))
 
-# --- 3. Resumen comparativo
-resumen_dificultades <- dificultades_emprend %>%
-  count(respuesta, name = "conteo") %>%
-  arrange(desc(conteo))
+# --- 3a. Resumen por menciones
+resumen_dificultades_menciones <- dificultades_emprend %>%
+  count(respuesta, name = "conteo")
 
-print(resumen_dificultades)
+# --- 3b. Resumen por hogares únicos
+resumen_dificultades_hogar <- dificultades_emprend %>%
+  group_by(respuesta) %>%
+  summarise(n_hogares = n_distinct(id_hogar))
 
-# --- 4. Gráfico comparativo
-ggplot(resumen_dificultades, aes(x = respuesta, y = conteo, fill = respuesta)) +
+# --- 4a. Gráfico por menciones
+plot_menciones <- ggplot(resumen_dificultades_menciones,
+                         aes(x = respuesta, y = conteo, fill = respuesta)) +
   geom_col() +
-  labs(title = "Dificultades para emprender en hogares sin productos financieros",
+  labs(title = "Dificultades para emprender (menciones)",
        x = "Tipo de dificultad",
-       y = "Frecuencia (número de hogares)") +
+       y = "Número de menciones") +
   theme_minimal()
 
-```
-```{r Observacion de Variables relacionadas con el acceso al sistema financiero}
-total_hogares_sin_fin <- length(unique(hogares_sin_finanzas))
-
-resumen_dificultades_prop <- resumen_dificultades %>%
-  mutate(proporcion = conteo / total_hogares_sin_fin * 100)
-
-print(resumen_dificultades_prop)
-
-# --- Gráfico con proporciones
-ggplot(resumen_dificultades_prop, aes(x = respuesta, y = proporcion, fill = respuesta)) +
+# --- 4b. Gráfico por hogares únicos
+plot_hogares <- ggplot(resumen_dificultades_hogar,
+                       aes(x = respuesta, y = n_hogares, fill = respuesta)) +
   geom_col() +
-  labs(title = "Dificultades para emprender en hogares sin productos financieros",
+  labs(title = "Dificultades para emprender (hogares únicos)",
        x = "Tipo de dificultad",
-       y = "Porcentaje de hogares (%)") +
+       y = "Número de hogares") +
   theme_minimal()
 
+# --- 5. Mostrar ambos gráficos lado a lado
+
+plot_menciones + plot_hogares
 
 ```
 
+```{r Hogares que marcaron ambas dificultades}
+# --- Hogares que marcaron ambas dificultades
+hogares_ambas <- dificultades_emprend %>%
+  filter(respuesta %in% c("credito", "docu_mentacion")) %>%
+  group_by(id_hogar) %>%
+  summarise(n_dificultades = n_distinct(respuesta)) %>%
+  filter(n_dificultades == 2)
 
+# --- Número de hogares en cada grupo
+conteo_combinado <- tibble(
+  categoria = c("Solo crédito", "Solo documentación", "Ambas"),
+  n_hogares = c(
+    length(setdiff(
+      dificultades_emprend$id_hogar[dificultades_emprend$respuesta == "credito"],
+      dificultades_emprend$id_hogar[dificultades_emprend$respuesta == "docu_mentacion"]
+    )),
+    length(setdiff(
+      dificultades_emprend$id_hogar[dificultades_emprend$respuesta == "docu_mentacion"],
+      dificultades_emprend$id_hogar[dificultades_emprend$respuesta == "credito"]
+    )),
+    nrow(hogares_ambas)
+  )
+)
 
+print(conteo_combinado)
 
-
-
+# --- Gráfico comparativo
+ggplot(conteo_combinado, aes(x = categoria, y = n_hogares, fill = categoria)) +
+  geom_col() +
+  labs(title = "Combinación de dificultades para emprender (hogares sin productos financieros)",
+       x = "Categoría",
+       y = "Número de hogares") +
+  theme_minimal()
+```
