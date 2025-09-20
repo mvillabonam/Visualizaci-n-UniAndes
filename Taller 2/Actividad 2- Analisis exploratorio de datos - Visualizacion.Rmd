@@ -313,7 +313,7 @@ vars_financieras <- c(
 )
 ```
 
-```{r comparacion variables de interes}
+```{r comparacion variables de medios de vida}
 resumen_financieros <- data_filtrada %>%
   group_by(hacinamiento) %>%
   summarise(across(all_of(vars_financieras), ~ sum(. == "1", na.rm = TRUE))) 
@@ -321,7 +321,7 @@ resumen_financieros <- data_filtrada %>%
 resumen_financieros
 ```
 
-```{r comparacion variables de interes}
+```{r comparacion variables de medios de vida}
 resumen_finanzas_largo <- resumen_financieros %>%
   pivot_longer(
     cols = -hacinamiento,
@@ -339,7 +339,7 @@ resumen_finanzas_largo <- resumen_finanzas_largo %>%
 head(resumen_finanzas_largo, 10)
 ```
 
-```{r comparacion variables de interes}
+```{r comparacion variables de medios de vida}
 # --- Para MEDIOS DE VIDA 5 (fuentes de ingresos/dinero)
 resumen_mv5 <- resumen_financieros %>%
   select(hacinamiento, starts_with("mediosvida5")) %>% 
@@ -371,7 +371,7 @@ resumen_mv7 <- resumen_financieros %>%
   )
 ```
 
-```{r comparacion variables de interes}
+```{r comparacion variables de medios de vida}
 # --- Gráfico 1: Fuentes de ingresos (MV5)
 ggplot(resumen_mv5, aes(x = hacinamiento, y = porcentaje, fill = producto)) +
   geom_col(position = "stack") +
@@ -382,7 +382,7 @@ ggplot(resumen_mv5, aes(x = hacinamiento, y = porcentaje, fill = producto)) +
   ) +
   theme_minimal()
 ```
-```{r comparacion variables de interes}
+```{r comparacion variables de medios de vida}
 # --- Gráfico 2: Productos financieros (MV7)
 ggplot(resumen_mv7, aes(x = hacinamiento, y = porcentaje, fill = producto)) +
   geom_col(position = "stack") +
@@ -394,14 +394,14 @@ ggplot(resumen_mv7, aes(x = hacinamiento, y = porcentaje, fill = producto)) +
   theme_minimal()
 ```
 
-```{r comparacion variables de interes}
+```{r comparacion variables de medios de vida}
 # Total de hogares por categoría de hacinamiento
 totales_hogares <- data_filtrada %>%
   group_by(hacinamiento) %>%
   summarise(total_hogares = n(), .groups = "drop")
 ```
 
-```{r comparacion variables de interes}
+```{r comparacion variables de medios de vida}
 # --- Medios de vida 5 ---
 resumen_mv5 <- data_filtrada %>%
   group_by(hacinamiento) %>%
@@ -422,7 +422,7 @@ resumen_mv5 <- data_filtrada %>%
 
 ```
 
-```{r comparacion variables de interes}
+```{r comparacion variables de medios de vida}
 # --- Gráfico Medios de Vida 5 (Ingresos) ---
 ggplot(resumen_mv5, aes(x = producto, y = porcentaje_hogares, fill = hacinamiento)) +
   geom_col(position = "dodge") +
@@ -437,7 +437,7 @@ ggplot(resumen_mv5, aes(x = producto, y = porcentaje_hogares, fill = hacinamient
   )
 ```
 
-```{r comparacion variables de interes}
+```{r comparacion variables de medios de vida}
 # --- Medios de vida 7 ---
 resumen_mv7 <- data_filtrada %>%
   group_by(hacinamiento) %>%
@@ -457,7 +457,7 @@ resumen_mv7 <- data_filtrada %>%
   )
 ```
 
-```{r comparacion variables de interes}
+```{r comparacion variables de medios de vida}
 # --- Medios de vida 7 ---
 # --- Gráfico Medios de Vida 7 (Productos Financieros) ---
 ggplot(resumen_mv7, aes(x = producto, y = porcentaje_hogares, fill = hacinamiento)) +
@@ -473,7 +473,7 @@ ggplot(resumen_mv7, aes(x = producto, y = porcentaje_hogares, fill = hacinamient
   )
 ```
 
-```{r comparacion variables de interes}
+```{r comparacion variables de alojamiento}
 preg_multi <- c("alojamiento3")
 
 cols_multi <- names(data_filtrada)[str_detect(
@@ -482,7 +482,7 @@ cols_multi <- names(data_filtrada)[str_detect(
 )]
 ```
 
-```{r comparacion variables de interes}
+```{r comparacion variables de alojamiento}
 data_alojamiento3 <- data_filtrada %>%
   pivot_longer(
     cols = all_of(cols_multi),
@@ -494,7 +494,7 @@ data_alojamiento3 <- data_filtrada %>%
   mutate(respuesta = str_remove(respuesta, "^alojamiento3_"))
 ```
 
-```{r comparacion variables de interes}
+```{r comparacion variables de alojamiento}
 resumen_aloj3 <- data_alojamiento3 %>%
   count(respuesta, name = "conteo") %>%
   arrange(desc(conteo))
@@ -503,7 +503,7 @@ resumen_aloj3
 
 ```
 
-```{r comparacion variables de interes}
+```{r comparacion variables de alojamiento}
 ggplot(resumen_aloj3, aes(x = reorder(respuesta, -conteo), y = conteo, fill = respuesta)) +
   geom_col() +
   theme_minimal() +
@@ -516,7 +516,7 @@ ggplot(resumen_aloj3, aes(x = reorder(respuesta, -conteo), y = conteo, fill = re
         legend.position = "none")
 
 ```
-```{r comparacion variables de interes}
+```{r comparacion variables de alojamiento}
 # Pasar a formato largo (solo respuestas marcadas = 1)
 data_aloj3 <- data_filtrada %>%
   pivot_longer(
@@ -528,7 +528,7 @@ data_aloj3 <- data_filtrada %>%
   filter(valor == 1)
 ```
 
-```{r comparacion variables de interes}
+```{r comparacion variables de alojamiento}
 resumen_aloj3_menciones <- data_aloj3 %>%
   count(respuesta, name = "conteo") %>%
   arrange(desc(conteo))%>%
@@ -536,7 +536,7 @@ resumen_aloj3_menciones <- data_aloj3 %>%
 
 ```
 
-```{r comparacion variables de interes}
+```{r comparacion variables de alojamiento}
 resumen_aloj3_hogar <- data_aloj3 %>%
   group_by(respuesta) %>%
   summarise(n_hogares = n_distinct(id_hogar), .groups = "drop")%>%
@@ -544,7 +544,7 @@ resumen_aloj3_hogar <- data_aloj3 %>%
 
 ```
 
-```{r comparacion variables de interes}
+```{r comparacion variables de alojamiento}
 plot_aloj3_menciones <- ggplot(resumen_aloj3_menciones,
                                aes(x = respuesta, y = conteo, fill = respuesta)) +
   geom_col() +
