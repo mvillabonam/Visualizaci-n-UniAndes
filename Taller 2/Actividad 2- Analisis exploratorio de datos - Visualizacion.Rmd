@@ -14,7 +14,7 @@ closeAllConnections()
 # --- Cargar librerías necesarias
 library("pacman")
 require("pacman")
-p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggplot2,openxlsx, writexl,stringi)
+p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggplot2,openxlsx, writexl,stringi, patchwork, skimr)
 
 # --- Definir rutas
 user <- Sys.getenv("USERNAME")
@@ -24,7 +24,7 @@ if (user == "judel") {
                     "ANDES", "Semestre 3", "Visualizacion de datos", "Actividad 2")
 } else if (user == "mvill") {
   path <- file.path("C:/Users", "mvill", "OneDrive", "Transitorio", "OneDrive", 
-                    "Documentos", "GitHub", "Visualizaci-n-UniAndes")
+                    "Documentos", "GitHub", "Visualizaci-n-UniAndes","Taller 2")
 } else if (user == "hncar") {
   path <- file.path("C:/Users", "hncar", "Documents", "GitHub", "Visualizaci-n-UniAndes")
 } else {
@@ -41,8 +41,7 @@ data_migracion_hogares  <- read_excel(data, sheet = "Hogares") %>% clean_names()
 data_migracion_personas <- read_excel(data, sheet = "Personas") %>% clean_names()
 ```
 
-## Entendimiento de los datos
-
+# Limpieza y creación de variables latentes.
 ```{r Ajuste texto}
 limpiar_texto <- function(df) {
   df[] <- lapply(df, function(x) {
@@ -65,14 +64,148 @@ data_migracion_personas <- limpiar_texto(data_migracion_personas)
 ```{r Union bases}
 data_migracion <- data_migracion_hogares %>%
   left_join(data_migracion_personas, by = "id_hogar")
-
 ```
 
 
-```{r Eleccion ciudad}
-data_bogota <- data_migracion %>%
-  filter(intro5 == "bogota. d.c.")
+A.) Limpieza y creación de variables latentes para criterio de eligibilidad
+
+```{r A. ELIGIBILIDAD }
+##############################################
+# EDAD Y SEXO 
+##############################################
+
+# Histograma Sexo
+data_migracion$sexo_desagregado <- ifelse(data_migracion$demo2 == "Otro",
+                                    "Otros",
+                                    "Sexo biológico")
+
+ggplot(data_migracion, aes(x = demo1)) +
+  geom_histogram(bins = 20, fill = "steelblue", alpha = 0.7) +
+  facet_wrap(~ sexo_desagregado + demo2, scales = "free_y") +
+  labs(title = "Histograma de edad desagregado",
+       x = "Edad", y = "Cuenta") +
+  theme_minimal()
+
+# Densidad por sexo y edad
+ggplot(data_migracion, aes(x = demo1, fill = demo2)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Densidad de Edad por Sexo",
+       x = "Edad",
+       y = "Densidad") +
+  theme_minimal()
+
+# Probabilidades por edades
+breaks <- pretty(range(data_migracion$demo1, na.rm = TRUE), n = 20)
+dens_bins <- data_migracion %>%
+  mutate(bin = cut(demo1, breaks = breaks, include.lowest = TRUE)) %>%
+  group_by(demo2, bin) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(demo2) %>%
+  mutate(freq = n / sum(n))  
+
+# Rangos de edades 
+data_migracion$rangos_edades <- cut(
+  data_migracion$demo1,
+  breaks = c(15, 25, 40, 70, Inf),
+  labels = c("Joven", "Adulto Joven", "Adulto", "Adulto Mayor"),
+  right = TRUE, include.lowest = TRUE
+)
+
+
+##############################################
+# JEFES DE HOGAR 
+##############################################
+data_migracion %>%
+  count(demo3) # Hay 8603 personas que reportan ser jefes de hogar
+
+data_migracion %>%
+  filter(!is.na(demo3) & demo3 != "") %>%
+  count(demo5) # Todas las personas que no son jefes de hogar dicen poder
+               # Responder por los miembros del hogar, coincide con                     # hogares sin jefes de hogar
+
+# Identificar hogares sin jefes de hogar
+data_migracion <- data_migracion %>%
+  group_by(id_hogar) %>%
+  mutate(no_tiene_jefe = as.integer(all(demo3 != "si" | is.na(demo3)))) %>%
+  ungroup()
+
+data_migracion %>%
+  distinct(id_hogar, intro5, no_tiene_jefe) %>%
+  group_by(intro5) %>%
+  summarise(
+    hogares_sin_jefe = sum(no_tiene_jefe),
+    hogares_total = n(),
+    porcentaje_sin_jefe = round(100 * hogares_sin_jefe / hogares_total, 1)
+  ) %>%
+  arrange(desc(hogares_sin_jefe)) # Resumen por ciudad
+
+# Contar quién se puede reasignar cómo jefe de hogar. 
+resumen_por_ciudad <- data_migracion %>%
+  filter(no_tiene_jefe == 1) %>%                      
+  group_by(intro5, id_hogar) %>%
+  summarise(
+    Puede_responder_por_el_hogar = any(demo5 == "si", na.rm = TRUE),    
+    Total_sí = sum(demo5 == "si", na.rm = TRUE),    
+    Total_miembros_promedio_por_hogar = n(),                                  # número de personas en ese hogar
+    .groups = "drop"
+  ) %>%
+  group_by(intro5) %>%
+  summarise(
+    hogares_sin_jefe = n(),   
+    hogares_con_al_menos_un_sí = sum(Puede_responder_por_el_hogar),  
+    promedio_sí_por_hogar = round(mean(Total_sí), 2),
+    miembros_promedio = round(mean(Total_miembros_promedio_por_hogar), 2),    # promedio de miembros por hogar
+    .groups = "drop"
+  ) %>%
+  arrange(desc(hogares_sin_jefe)) # En todos los hogares sin jefe de hogar
+                                  # los miembros reportan que pueden responder                                   # por el resto. Por lo que se asigna                                          # aleatoriamente a cualquier integrante 
+                                  # cómo jefe de hogar. 
+resumen_por_ciudad
+
+# Asignar un jefe de hogar
+data_migracion <- data_migracion %>%
+  group_by(id_hogar) %>%
+  mutate(
+    demo3 = ifelse(no_tiene_jefe == 1 & row_number() == 1, "si", demo3)
+  ) %>%
+  ungroup()
+
+##############################################
+# INTENCIÓN DE MOVERSE
+##############################################
+intencion_moverse <- data_migracion %>%
+  pivot_longer(
+    cols = c(demo21_ing_red,
+             demo21_suf_disc,
+             demo21_aum_prec,
+             demo21_desal_viv,
+             demo21_no_alim,
+             demo21_no_acces_sal,
+             demo21_of_lab,
+             demo21_acc_edu,
+             demo21_acc_edu_nna,
+             demo21_otro_inten),
+    names_to = "variable",
+    values_to = "valor"
+  ) %>%
+  group_by(intro5, variable) %>%
+  summarise(n_1 = sum(valor == 1, na.rm = TRUE), .groups = "drop") %>%
+  arrange(intro5, variable)
+intencion_moverse
+
+# Moverse por Ingresos 
+
+# Moverse por carencias de servicios (incluye educación y alimentación)
+
+
+# Moverse por discriminación (incluye desalojo)
+
+# Moverse por otras causas
+
+
+rm(dens_bins)
 ```
+
 
 ```{r Conteo hogares}
 # --- Contar cuántas veces aparece cada id_hogar
@@ -170,7 +303,6 @@ plot_hogares <- ggplot(resumen_dificultades_hogar,
   theme_minimal()
 
 # --- 5. Mostrar ambos gráficos lado a lado
-
 plot_menciones + plot_hogares
 
 ```
@@ -209,3 +341,9 @@ ggplot(conteo_combinado, aes(x = categoria, y = n_hogares, fill = categoria)) +
        y = "Número de hogares") +
   theme_minimal()
 ```
+# Exploración sección B
+
+```{r Hogares que marcaron ambas dificultades}
+unique(data_migracion["demo8"])
+```
+
