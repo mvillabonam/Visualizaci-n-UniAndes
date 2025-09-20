@@ -41,7 +41,7 @@ data_migracion_hogares  <- read_excel(data, sheet = "Hogares") %>% clean_names()
 data_migracion_personas <- read_excel(data, sheet = "Personas") %>% clean_names()
 ```
 
-# Limpieza y creación de variables latentes.
+# Limpieza básica
 ```{r Ajuste texto}
 limpiar_texto <- function(df) {
   df[] <- lapply(df, function(x) {
@@ -66,8 +66,7 @@ data_migracion <- data_migracion_hogares %>%
   left_join(data_migracion_personas, by = "id_hogar")
 ```
 
-
-A.) Limpieza y creación de variables latentes para criterio de eligibilidad
+## Exploración y creación de variables latentes
 
 ```{r A. ELIGIBILIDAD }
 ##############################################
@@ -110,7 +109,7 @@ data_migracion$rangos_edades <- cut(
   labels = c("Joven", "Adulto Joven", "Adulto", "Adulto Mayor"),
   right = TRUE, include.lowest = TRUE
 )
-
+rm(dens_bins,breaks)
 
 ##############################################
 # JEFES DE HOGAR 
@@ -161,6 +160,7 @@ resumen_por_ciudad <- data_migracion %>%
                                   # los miembros reportan que pueden responder                                   # por el resto. Por lo que se asigna                                          # aleatoriamente a cualquier integrante 
                                   # cómo jefe de hogar. 
 resumen_por_ciudad
+rm(resumen_por_ciudad)
 
 # Asignar un jefe de hogar
 data_migracion <- data_migracion %>%
@@ -191,21 +191,154 @@ intencion_moverse <- data_migracion %>%
   group_by(intro5, variable) %>%
   summarise(n_1 = sum(valor == 1, na.rm = TRUE), .groups = "drop") %>%
   arrange(intro5, variable)
-intencion_moverse
 
-# Moverse por Ingresos 
+rm(intencion_moverse)
+
+# Moverse por Falta de ingresos
+data_migracion <- data_migracion %>%
+  group_by(id_hogar) %>%
+  mutate(
+    carencia_ingresos = as.integer(any(
+      demo21_ing_red == 1 | demo21_aum_prec == 1 | demo21_of_lab == 1,
+      na.rm = TRUE
+    ))
+  ) %>% ungroup()
 
 # Moverse por carencias de servicios (incluye educación y alimentación)
-
+data_migracion <- data_migracion %>%
+  group_by(id_hogar) %>%
+  mutate(
+    carencia_servicios = as.integer(any(
+      demo21_desal_viv == 1 | demo21_no_alim == 1 | 
+        demo21_no_acces_sal == 1| demo21_acc_edu == 1|
+        demo21_acc_edu_nna ==1),
+      na.rm = TRUE
+    )) %>% ungroup()
 
 # Moverse por discriminación (incluye desalojo)
+data_migracion <- data_migracion %>%
+  group_by(id_hogar) %>%
+  mutate(
+    discriminacion = as.integer(any(
+      demo21_suf_disc == 1 | demo21_desal_viv == 1),
+      na.rm = TRUE
+    )) %>% ungroup()
 
 # Moverse por otras causas
-
-
-rm(dens_bins)
 ```
 
+```{r B. INTENSIONES Y MOVIMIENTOS }
+#########################################
+# MIGRAR EN PRÓXIMOS 6 MESES
+#########################################
+
+data_migracion <- data_migracion %>%
+  mutate(
+    `6M_sinmov`      = ifelse(demo22 == "no tienen la intencion de moverse", 1, 0),
+    `6M_Mudar_barrio`= ifelse(demo22 == "si, nos vamos a mudar de barrio al interior de esta ciudad", 1, 0),
+    `6M_Depto`       = ifelse(demo22 == "si, nos vamos a cambiar a otro departamento al interior de colombia", 1, 0),
+    `6M_Venezuela`   = ifelse(demo22 == "si, irnos a venezuela", 1, 0),
+    `6M_OtroPais`    = ifelse(demo22 == "si, irnos a otro pais (diferente a venezuela)", 1, 0),
+    `6M_MismoDpto`   = ifelse(demo22 == "si, nos vamos a cambiar de municipio pero en el mismo departamento actual", 1, 0)
+  )
+
+resumen_intencion_6M <- data_migracion %>%
+  group_by(intro5) %>%
+  summarise(
+    sinmov = sum(`6M_sinmov`, na.rm = TRUE),
+    mudar_barrio = sum(`6M_Mudar_barrio`, na.rm = TRUE),
+    depto = sum(`6M_Depto`, na.rm = TRUE),
+    venezuela = sum(`6M_Venezuela`, na.rm = TRUE),
+    otro_pais = sum(`6M_OtroPais`, na.rm = TRUE),
+    mismo_dpto = sum(`6M_MismoDpto`, na.rm = TRUE),
+    .groups = "drop"
+  )
+resumen_intencion_6M
+
+#########################################
+# HACE CUÁNTO TIEMPO RESIDE EN EL HOGAR
+#########################################
+data_migracion <- data_migracion %>%
+  mutate(
+    meses_en_lugar = case_when(
+      demo12a %in% c("no sabe", "prefiere no responder") ~ NA_character_,
+      demo12a == "menos de 1 mes" ~ "<1",
+      demo12a == "entre 1 mes y menos de 6 meses" ~ "1-6",
+      demo12a == "entre 6 meses y menos de 1 ano" ~ "6-12",
+      demo12a == "entre 1 ano y menos de 2 anos" ~ "12-24",
+      demo12a == "entre 2 y menos de 3 anos" ~ "24-36",
+      demo12a == "entre 3 y 10 anos" ~ "36-120",
+      demo12a == "mas de 10 anos" ~ ">120",
+      TRUE ~ NA_character_
+    ),
+    meses_en_lugar = factor(
+      meses_en_lugar,
+      levels = c("<1", "1-6", "6-12", "12-24", "24-36", "36-120", ">120"),
+      ordered = TRUE
+    )
+  )
+
+resumen_meses_lugar <- data_migracion %>%
+  group_by(intro5, meses_en_lugar) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(intro5) %>%
+  mutate(
+    pct = round(100 * n / sum(n), 1)   # porcentaje dentro de cada ciudad
+  ) %>%
+  arrange(intro5, meses_en_lugar)
+resumen_meses_lugar
+
+#########################################
+# RAZÓN POR LA QUE MIGRÓ A RESIDENCIA ACTUAL 
+#########################################
+data_migracion <- data_migracion %>%
+  mutate(
+    Migro_por_violencia = ifelse(demo17 %in% c(
+      "la persona o alguien cercano fue victima 
+      de violencia (extorsion, agresiones, etc.) o amenazas",
+      "temor por la situacion general de violencia / inseguridad"), 1, 0),
+    
+    Migro_por_familia = ifelse(demo17 %in% c(
+      "acompanar a otros miembros del hogar",
+      "reunificacion familiar"), 1, 0),
+    
+    Migro_por_discriminacion = ifelse(demo17 %in% c(
+      "salud mental o fisica",
+      "temor de ser perseguido/a, agredido/a o discriminado/a"), 1, 0),
+    
+    Migro_por_trabajo = ifelse(demo17 == "trabajo", 1, 0),
+    
+    Migro_por_educacion = ifelse(demo17 == "educacion", 1, 0),
+    
+    Migro_por_des_natural = ifelse(demo17 == "desastres naturales", 1, 0),
+    
+    Migro_por_alimentos = ifelse(demo17 == "alimentos", 1, 0)
+  )
+
+
+resumen_motivos <- data_migracion %>%
+  group_by(intro5) %>%
+  summarise(
+    violencia      = sum(Migro_por_violencia, na.rm = TRUE),
+    familia        = sum(Migro_por_familia, na.rm = TRUE),
+    discriminacion = sum(Migro_por_discriminacion, na.rm = TRUE),
+    trabajo        = sum(Migro_por_trabajo, na.rm = TRUE),
+    educacion      = sum(Migro_por_educacion, na.rm = TRUE),
+    des_natural    = sum(Migro_por_des_natural, na.rm = TRUE),
+    alimentos      = sum(Migro_por_alimentos, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+```
+
+```{r K. AGUA, SANEAMIENTO E HIGIENE (WASH)}
+#########################################
+# MIGRAR EN PRÓXIMOS 6 MESES
+#########################################
+data_migracion %>%
+  count(wash1) 
+
+```
 
 ```{r Conteo hogares}
 # --- Contar cuántas veces aparece cada id_hogar
