@@ -36,8 +36,7 @@ setwd(path)
 
 # --- Cargar datos 
 data <- file.path(path, "data/2025 JNA VP.xlsx")
-# Adicional para Visualización
-col_mpios <- st_read("data/shapes.shp", quiet = TRUE)
+
 
 data_migracion_hogares  <- read_excel(data, sheet = "Hogares") %>% clean_names()
 data_migracion_personas <- read_excel(data, sheet = "Personas") %>% clean_names()
@@ -61,7 +60,6 @@ limpiar_texto <- function(df) {
 # --- Aplicar a tus bases
 data_migracion_hogares  <- limpiar_texto(data_migracion_hogares)
 data_migracion_personas <- limpiar_texto(data_migracion_personas)
-col_mpios <- limpiar_texto(col_mpios)
 ```
 
 ```{r Union bases}
