@@ -1034,3 +1034,72 @@ ggplot(resumen_aloj3_hacinamiento, aes(x = problema, y = porcentaje_hogares, fil
     axis.text.x = element_text(angle = 45, hjust = 1)
   )
 ```
+
+```{r Gasto en vivienda}
+# Resumen de la variable de gasto en vivienda
+summary(data_filtrada$san53_viv)
+
+# Revisar cuántos NA hay
+sum(is.na(data_filtrada$san53_viv))
+```
+
+```{r Gasto en vivienda}
+# --- Resumen estadístico del gasto en vivienda
+resumen_gasto_viv <- data_filtrada %>%
+  group_by(hacinamiento) %>%
+  summarise(
+    n = n(),
+    media = mean(san53_viv, na.rm = TRUE),
+    mediana = median(san53_viv, na.rm = TRUE),
+    p25 = quantile(san53_viv, 0.25, na.rm = TRUE),
+    p75 = quantile(san53_viv, 0.75, na.rm = TRUE),
+    maximo = max(san53_viv, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+```{r Gasto en vivienda}
+# --- Resumen estadístico del gasto en vivienda
+print(resumen_gasto_viv) 
+```
+
+```{r Gasto en vivienda}
+# --- Crear variable de gasto total
+data_filtrada <- data_filtrada %>%
+  mutate(
+    gasto_total = rowSums(across(c(san52_alim, san53_viv, san54_serv,
+                                   san55_sal, san56_edu, san57_otros)), na.rm = TRUE),
+    pct_vivienda = if_else(gasto_total > 0, (san53_viv / gasto_total) * 100, NA_real_)
+  )
+
+# --- Revisar tabla de resumen
+resumen_pct_viv <- data_filtrada %>%
+  group_by(hacinamiento) %>%
+  summarise(
+    n = n(),
+    media = mean(pct_vivienda, na.rm = TRUE),
+    mediana = median(pct_vivienda, na.rm = TRUE),
+    p25 = quantile(pct_vivienda, 0.25, na.rm = TRUE),
+    p75 = quantile(pct_vivienda, 0.75, na.rm = TRUE),
+    maximo = max(pct_vivienda, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+```{r Gasto en vivienda}
+print(resumen_pct_viv)
+```
+
+```{r Gasto en vivienda}
+ggplot(data_filtrada, aes(x = hacinamiento, y = pct_vivienda, fill = hacinamiento)) +
+  geom_violin(trim = FALSE, alpha = 0.6) +
+  geom_boxplot(width = 0.1, outlier.shape = NA) +
+  theme_minimal(base_size = 12) +
+  labs(
+    title = "Porcentaje del gasto total destinado a vivienda",
+    x = "Nivel de hacinamiento",
+    y = "% del gasto en vivienda"
+  ) +
+  scale_y_continuous(labels = percent_format(scale = 1)) +  # convierte a %
+  theme(legend.position = "none")
+```
