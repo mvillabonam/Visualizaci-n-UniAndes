@@ -14,7 +14,7 @@ closeAllConnections()
 # --- Cargar librerías necesarias
 library("pacman")
 require("pacman")
-p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggplot2,openxlsx, writexl,stringi, patchwork, skimr,tidyverse, readxl, ggthemes, plotly,)
+p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggplot2,openxlsx, writexl,stringi, patchwork, skimr,tidyverse, readxl, ggthemes, plotly,sf,osmdata,dplyr)
 
 # --- Definir rutas
 user <- Sys.getenv("USERNAME")
@@ -36,6 +36,8 @@ setwd(path)
 
 # --- Cargar datos 
 data <- file.path(path, "data/2025 JNA VP.xlsx")
+# Adicional para Visualización
+col_mpios <- st_read("data/shapes.shp", quiet = TRUE)
 
 data_migracion_hogares  <- read_excel(data, sheet = "Hogares") %>% clean_names()
 data_migracion_personas <- read_excel(data, sheet = "Personas") %>% clean_names()
@@ -224,6 +226,17 @@ data_migracion <- data_migracion %>%
     )) %>% ungroup()
 
 # Moverse por otras causas
+
+##############################################
+# AÑOS
+##############################################
+data_migracion <- data_migracion %>%
+  mutate(
+    fecha_demo8 = ymd(demo8),   # convertir string a fecha
+    meses_transcurridos = interval(fecha_demo8, today()) %/% months(1),
+    anios_en_Col = meses_transcurridos / 12
+  )
+
 ```
 
 ```{r B. INTENSIONES Y MOVIMIENTOS }
@@ -473,16 +486,26 @@ data_migracion <- data_migracion %>%
   ) %>%
   ungroup()
 
-
+#########################################
+# PRBLEMAS PARA ACCEDER A ARTÍCULOS DE HIGIENE 
+#########################################
+data_migracion <- data_migracion %>%
+  mutate(
+    wash20 = factor(
+      wash20,
+      levels = c("no (falta de jabon, lavamanos con agua)",
+                 "si",
+                 "utilizo gel antibacterial / toallas humedas / alcohol"),
+      labels = c("No (falta de jabón/agua)", "Sí", "Gel/Toallas/Alcohol"),
+      ordered = TRUE
+    )
+  )
 ```
 
 Se prioriza el registro del jefe de hogar en caso de no existir se escoje otro
 ## Exploración y creación de variables latentes
 
 ```{r Estadísticas descriptivas}
-# 
-
-
 # Tiempo de residencia en lugar en que se encuentra actualmente
 resumen_meses_lugar <- data_migracion %>%
   group_by(intro5, meses_en_lugar) %>%
