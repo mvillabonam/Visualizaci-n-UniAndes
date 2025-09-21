@@ -697,18 +697,14 @@ vars_financieras <- c(
   "mediosvida5_mediosvida5_donaciones",
   "mediosvida5_mediosvida5_notiene",  
   "mediosvida5_mediosvida5_otra",   
-  "mediosvida5_mediosvida5_nosabe",  
-  "mediosvida5_mediosvida5_prefiereno",    
   
   # Productos financieros
   "mediosvida7_mediosvida7_cuenta_ahorro",
   "mediosvida7_mediosvida7_cuenta_corriente",
-  "mediosvida7_mediosvida7_cdt",
   "mediosvida7_mediosvida7_billetera_electronica",
   "mediosvida7_mediosvida7_deposito_bajo_monto",
   "mediosvida7_mediosvida7_microcredito",
   "mediosvida7_mediosvida7_prestamo_vivienda",
-  "mediosvida7_mediosvida7_prestamo_vehiculo",
   "mediosvida7_mediosvida7_prestamo_de_libre_inversion",
   "mediosvida7_mediosvida7_tarjeta_de_credito",
   "mediosvida7_mediosvida7_otro",  
@@ -830,7 +826,9 @@ resumen_mv5 <- data_filtrada %>%
 
 ```{r comparacion variables de medios de vida}
 # --- Gráfico Medios de Vida 5 (Ingresos) ---
-ggplot(resumen_mv5, aes(x = producto, y = porcentaje_hogares, fill = hacinamiento)) +
+resumen_mv5 %>%
+  filter(!is.na(porcentaje_hogares), porcentaje_hogares > 0) %>%
+  ggplot(aes(x = producto, y = porcentaje_hogares, fill = hacinamiento)) +
   geom_col(position = "dodge") +
   labs(
     title = "¿Actualmente en su hogar cuáles son las principales fuentes de ingresos/dinero?",
@@ -865,11 +863,14 @@ resumen_mv7 <- data_filtrada %>%
 
 ```{r comparacion variables de medios de vida}
 # --- Medios de vida 7 ---
+
 # --- Gráfico Medios de Vida 7 (Productos Financieros) ---
-ggplot(resumen_mv7, aes(x = producto, y = porcentaje_hogares, fill = hacinamiento)) +
+resumen_mv7 %>%
+  filter(porcentaje_hogares > 0) %>%   # 🔹 Elimina categorías sin info
+  ggplot(aes(x = producto, y = porcentaje_hogares, fill = hacinamiento)) +
   geom_col(position = "dodge") +
   labs(
-    title = "¿Qué tipo de productos financieros tiene su hogar actualmente en Colombia?",
+    title = "¿Qué tipo de productos financieros tiene su hogar actualmente en Bogota?",
     x = "Producto financiero",
     y = "% de hogares"
   ) +
@@ -982,9 +983,7 @@ vars_entorno <- c(
   "alojamiento3_alojamiento3_no_privacidad",
   "alojamiento3_alojamiento3_desastres",
   "alojamiento3_alojamiento3_ninguna",
-  "alojamiento3_alojamiento3_otro",
-  "alojamiento3_alojamiento3_nosabe",
-  "alojamiento3_alojamiento3_noresponde"
+  "alojamiento3_alojamiento3_otro"
   )
 ```
 
