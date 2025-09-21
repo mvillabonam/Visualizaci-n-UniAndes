@@ -1059,6 +1059,19 @@ resumen_gasto_viv <- data_filtrada %>%
 # --- Resumen estadístico del gasto en vivienda
 print(resumen_gasto_viv) 
 ```
+```{r Gasto en vivienda}
+# --- Revisar NA en variables de gasto
+colSums(is.na(data_filtrada[, c("san52_alim", "san53_viv", 
+                                "san54_serv", "san55_sal", 
+                                "san56_edu", "san57_otros")]))
+
+# --- Revisar NA en gasto_total y pct_vivienda
+sum(is.na(data_filtrada$gasto_total))
+sum(is.na(data_filtrada$pct_vivienda))
+
+# --- Proporción de NA en pct_vivienda
+mean(is.na(data_filtrada$pct_vivienda))
+```
 
 ```{r Gasto en vivienda}
 # --- Crear variable de gasto total
@@ -1100,3 +1113,4 @@ ggplot(data_filtrada, aes(x = hacinamiento, y = pct_vivienda, fill = hacinamient
   scale_y_continuous(labels = percent_format(scale = 1)) +  # convierte a %
   theme(legend.position = "none")
 ```
+
