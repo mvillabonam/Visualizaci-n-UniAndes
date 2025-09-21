@@ -881,7 +881,7 @@ ggplot(resumen_mv7, aes(x = producto, y = porcentaje_hogares, fill = hacinamient
   )
 ```
 
-```{r comparacion variables de alojamiento}
+```{r Problemas de vivienda}
 preg_multi <- c("alojamiento3")
 
 cols_multi <- names(data_filtrada)[str_detect(
@@ -890,7 +890,7 @@ cols_multi <- names(data_filtrada)[str_detect(
 )]
 ```
 
-```{r comparacion variables de alojamiento}
+```{r Problemas de vivienda}
 data_alojamiento3 <- data_filtrada %>%
   pivot_longer(
     cols = all_of(cols_multi),
@@ -902,7 +902,7 @@ data_alojamiento3 <- data_filtrada %>%
   mutate(respuesta = str_remove(respuesta, "^alojamiento3_"))
 ```
 
-```{r comparacion variables de alojamiento}
+```{r Problemas de vivienda}
 resumen_aloj3 <- data_alojamiento3 %>%
   count(respuesta, name = "conteo") %>%
   arrange(desc(conteo))
@@ -911,7 +911,7 @@ resumen_aloj3
 
 ```
 
-```{r comparacion variables de alojamiento}
+```{r Problemas de vivienda}
 ggplot(resumen_aloj3, aes(x = reorder(respuesta, -conteo), y = conteo, fill = respuesta)) +
   geom_col() +
   theme_minimal() +
@@ -924,7 +924,8 @@ ggplot(resumen_aloj3, aes(x = reorder(respuesta, -conteo), y = conteo, fill = re
         legend.position = "none")
 
 ```
-```{r comparacion variables de alojamiento}
+
+```{r Problemas de vivienda}
 # Pasar a formato largo (solo respuestas marcadas = 1)
 data_aloj3 <- data_filtrada %>%
   pivot_longer(
@@ -936,7 +937,7 @@ data_aloj3 <- data_filtrada %>%
   filter(valor == 1)
 ```
 
-```{r comparacion variables de alojamiento}
+```{r Problemas de vivienda}
 resumen_aloj3_menciones <- data_aloj3 %>%
   count(respuesta, name = "conteo") %>%
   arrange(desc(conteo))%>%
@@ -944,7 +945,7 @@ resumen_aloj3_menciones <- data_aloj3 %>%
 
 ```
 
-```{r comparacion variables de alojamiento}
+```{r Problemas de vivienda}
 resumen_aloj3_hogar <- data_aloj3 %>%
   group_by(respuesta) %>%
   summarise(n_hogares = n_distinct(id_hogar), .groups = "drop")%>%
@@ -952,7 +953,7 @@ resumen_aloj3_hogar <- data_aloj3 %>%
 
 ```
 
-```{r comparacion variables de alojamiento}
+```{r Problemas de vivienda}
 plot_aloj3_menciones <- ggplot(resumen_aloj3_menciones,
                                aes(x = respuesta, y = conteo, fill = respuesta)) +
   geom_col() +
@@ -972,4 +973,64 @@ plot_aloj3_hogar <- ggplot(resumen_aloj3_hogar,
 # Mostrar juntos
 plot_aloj3_menciones + plot_aloj3_hogar
 
+```
+
+
+```{r Problemas de vivienda}
+vars_entorno <- c(
+  "alojamiento3_alojamiento3_no_conflic",
+  "alojamiento3_alojamiento3_no_higiene",
+  "alojamiento3_alojamiento3_no_lnfaestruc",
+  "alojamiento3_alojamiento3_no_privacidad",
+  "alojamiento3_alojamiento3_desastres",
+  "alojamiento3_alojamiento3_ninguna",
+  "alojamiento3_alojamiento3_otro",
+  "alojamiento3_alojamiento3_nosabe",
+  "alojamiento3_alojamiento3_noresponde"
+  )
+```
+
+```{r Problemas de vivienda}
+resumen_entorno <- data_filtrada %>%
+  group_by(hacinamiento) %>%
+  summarise(across(all_of(vars_entorno), ~ sum(. == "1", na.rm = TRUE))) 
+
+resumen_entorno
+```
+
+
+```{r Problemas de vivienda}
+
+resumen_aloj3_hacinamiento <- resumen_entorno %>%
+  select(hacinamiento, starts_with("alojamiento3")) %>% 
+  pivot_longer(
+    cols = -hacinamiento,
+    names_to = "problema",
+    values_to = "conteo"
+  ) %>%
+  group_by(hacinamiento) %>%
+  mutate(
+    total = sum(conteo, na.rm = TRUE),
+    porcentaje = round((conteo / total) * 100, 1),
+    problema = gsub("alojamiento3_alojamiento3_", "", problema)  # limpiar nombres
+  ) %>%
+  left_join(totales_hogares, by = "hacinamiento") %>%
+  mutate(
+    porcentaje_hogares = round((conteo / total_hogares) * 100, 1),
+    producto = str_remove(problema, "alojamiento3_alojamiento3_")
+  )
+
+
+# --- Gráfico Problemas de vivienda ---
+ggplot(resumen_aloj3_hacinamiento, aes(x = problema, y = porcentaje_hogares, fill = hacinamiento)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Problemas relacionados con la vivienda y el entorno",
+    x = "Problema reportado",
+    y = "% de hogares"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
 ```
