@@ -67,7 +67,6 @@ data_migracion <- data_migracion_hogares %>%
 ```
 
 ## Exploración y creación de variables latentes
-
 ```{r A. ELIGIBILIDAD }
 ##############################################
 # EDAD Y SEXO 
@@ -242,19 +241,6 @@ data_migracion <- data_migracion %>%
     `6M_MismoDpto`   = ifelse(demo22 == "si, nos vamos a cambiar de municipio pero en el mismo departamento actual", 1, 0)
   )
 
-resumen_intencion_6M <- data_migracion %>%
-  group_by(intro5) %>%
-  summarise(
-    sinmov = sum(`6M_sinmov`, na.rm = TRUE),
-    mudar_barrio = sum(`6M_Mudar_barrio`, na.rm = TRUE),
-    depto = sum(`6M_Depto`, na.rm = TRUE),
-    venezuela = sum(`6M_Venezuela`, na.rm = TRUE),
-    otro_pais = sum(`6M_OtroPais`, na.rm = TRUE),
-    mismo_dpto = sum(`6M_MismoDpto`, na.rm = TRUE),
-    .groups = "drop"
-  )
-resumen_intencion_6M
-
 #########################################
 # HACE CUÁNTO TIEMPO RESIDE EN EL HOGAR
 #########################################
@@ -277,16 +263,6 @@ data_migracion <- data_migracion %>%
       ordered = TRUE
     )
   )
-
-resumen_meses_lugar <- data_migracion %>%
-  group_by(intro5, meses_en_lugar) %>%
-  summarise(n = n(), .groups = "drop") %>%
-  group_by(intro5) %>%
-  mutate(
-    pct = round(100 * n / sum(n), 1)   # porcentaje dentro de cada ciudad
-  ) %>%
-  arrange(intro5, meses_en_lugar)
-resumen_meses_lugar
 
 #########################################
 # RAZÓN POR LA QUE MIGRÓ A RESIDENCIA ACTUAL 
@@ -315,7 +291,210 @@ data_migracion <- data_migracion %>%
     Migro_por_alimentos = ifelse(demo17 == "alimentos", 1, 0)
   )
 
+```
 
+```{r K. AGUA, SANEAMIENTO E HIGIENE (WASH)}
+#########################################
+# ACCESO A AGUA
+#########################################
+data_migracion <- data_migracion %>%
+  group_by(id_hogar) %>%
+  mutate(
+    Acueducto_casa = as.integer(any(wash1 == "agua de tuberia por grifo", na.rm = TRUE)),
+    AguaPublica_fueradecasa = as.integer(any(
+      wash1 %in% c("perforaciones / pozos tubulares (publicos)",
+                   "pilas o fuentes publicas (fuentes publicas)"),
+      na.rm = TRUE
+    )),
+    Agua_FuentesNaturales = as.integer(any(
+      wash1 %in% c("agua de lluvia",
+                   "agua superficial (rio, quebrada, manantial, lago)"),
+      na.rm = TRUE
+    )),
+    Agua_FuentesPrivadas = as.integer(any(
+      wash1 %in% c("agua envasada, agua embotellada y agua en bolsitas",
+                   "de pozo sin bomba, aljibe, jaguey o barreno; (no protegido)",
+                   "suministro de agua, incluidos camiones cisterna y carros / tanques / tambores pequenos"),
+      na.rm = TRUE
+    )),
+    Agua_NoAcceso = as.integer(any(wash1 == "no tiene acceso", na.rm = TRUE))
+  ) %>%
+  ungroup()
+
+#########################################
+# AGUA EN VIVIENDA
+#########################################
+data_migracion <- data_migracion %>%
+  group_by(id_hogar) %>%
+  mutate(
+    Acceso_agua_casa = as.integer(any(wash01 == "si", na.rm = TRUE)),
+    No_Acceso_agua_casa = as.integer(any(wash01 == "no", na.rm = TRUE)),
+    Acceso_agua_casa_Otro = as.integer(any(wash01 %in% c("no sabe", "prefiere no responder"), na.rm = TRUE))
+  ) %>%
+  ungroup()
+
+#########################################
+# TIEMPO PARA AGUA 
+#########################################
+data_migracion <- data_migracion %>%
+  group_by(id_hogar) %>%
+  mutate(
+    Agua_caminar_largo = as.integer(any(wash3 == "mas de 30 minutos", na.rm = TRUE)),
+    Agua_caminar_corto = as.integer(any(wash3 == "menos de 30 minutos", na.rm = TRUE))
+  ) %>%
+  ungroup()
+
+#########################################
+# SATISFACCIÓN NECESIDADES BÁSICAS AGUA
+#########################################
+data_migracion <- data_migracion %>%
+  mutate(
+    Agua_Satisfaccion = case_when(
+      wash5 == "si" ~ 1L,
+      wash5 == "no" ~ 0L,
+      TRUE ~ NA_integer_
+    )
+  )
+
+#########################################
+# TIEMPO DE COBERTURA DEL SERVICIO 
+#########################################
+data_migracion <- data_migracion %>%
+  mutate(
+    Agua_CoberturaTotal = ifelse(
+      wash6 == "las 24 horas del dia, los 7 dias de la semana", 1L, 0L
+    ),
+    Agua_CoberturaMedia = ifelse(
+      wash6 %in% c("llega a diario pero solo a ciertas horas del 
+                   dia/en horarios restringidos",
+                   "las 24 horas de 4 a 6 dias a la semana"), 1L, 0L
+    ),
+    Agua_MalaCobertura = ifelse(
+      wash6 %in% c("las 24 horas 1 a 2 dias a la semana",
+                   "las 24 horas 3 dias a la semana"), 1L, 0L
+    )
+  )
+
+#########################################
+# INFORMACIÓN SANEAMIENTO 
+#########################################
+data_migracion <- data_migracion %>%
+  group_by(id_hogar) %>%
+  mutate(
+    # Calidad
+    Saneamiento_deCalidad = as.integer(any(
+      wash11 %in% c("inodoro conectado a alcantarillado",
+                    "inodoro conectado a pozo septico"),
+      na.rm = TRUE
+    )),
+    
+    # No calidad
+    Saneamiento_noCalidad = as.integer(any(
+      wash11 %in% c("letrinas colgantes o inodoro con descarga directa a fuentes de agua (bajamar)",
+                    "inodoro sin conexion (banos portatiles)",
+                    "defecacion al aire libre",
+                    "letrina de pozo con losa y plataforma",
+                    "no tiene servicio sanitario, pero tiene un lugar gratuito y seguro",
+                    "no tiene servicio sanitario y tiene que pagar el servicio",
+                    "letrina improvisada"),
+      na.rm = TRUE
+    )),
+    
+    # Letrinas
+    Saneamiento_Letrina = as.integer(any(
+      wash11 %in% c("letrinas colgantes o inodoro con descarga directa a fuentes de agua (bajamar)",
+                    "inodoro sin conexion (banos portatiles)",
+                    "letrina de pozo con losa y plataforma",
+                    "letrina improvisada"),
+      na.rm = TRUE
+    )),
+    
+    # Privado
+    Saneamiento_Privado = as.integer(any(
+      wash11 == "no tiene servicio sanitario y tiene que pagar el servicio",
+      na.rm = TRUE
+    )),
+    
+    # Uso público
+    Saneamiento_UsoPublico = as.integer(any(
+      wash11 %in% c("no tiene servicio sanitario, pero tiene un lugar gratuito y seguro",
+                    "inodoro sin conexion (banos portatiles)"),
+      na.rm = TRUE
+    )),
+    
+    # Sin cobertura
+    Saneamiento_SinCobertura = as.integer(any(
+      wash11 %in% c("defecacion al aire libre",
+                    "no tiene servicio sanitario, pero tiene un lugar gratuito y seguro",
+                    "no tiene servicio sanitario y tiene que pagar el servicio"),
+      na.rm = TRUE
+    ))
+  ) %>%
+  ungroup()
+
+
+#########################################
+# SERVICIO DE BASURA
+#########################################
+data_migracion <- data_migracion %>%
+  group_by(id_hogar) %>%
+  mutate(
+    Servicio_basuraPublico = as.integer(any(
+      wash17 == "camion de basura municipal/punto de acopio formal", 
+      na.rm = TRUE
+    )),
+    
+    Servicio_basuraPrivado = as.integer(any(
+      wash17 == "servicio informal (punto de acopio no autorizado, recicladores/cartoneros)", 
+      na.rm = TRUE
+    )),
+    
+    Servicio_Nobasura = as.integer(any(
+      wash17 %in% c("no sabe",
+                    "la tiran en la calle, via publica y/o rio",
+                    "la queman o entierran"),
+      na.rm = TRUE
+    ))) %>%
+  ungroup()
+
+#########################################
+# AMBIENTE CONTAMINADO
+#########################################
+data_migracion <- data_migracion %>%
+  group_by(id_hogar) %>%
+  mutate(
+    AmbienteContaminado = as.integer(any(
+      wash17 %in% c("la tiran en la calle, via publica y/o rio",
+                    "la queman o entierran") |
+      wash11 %in% c("defecacion al aire libre",
+                    "letrinas colgantes o inodoro con descarga directa a fuentes de agua (bajamar)"),
+      na.rm = TRUE
+    ))
+  ) %>%
+  ungroup()
+
+
+```
+
+Se prioriza el registro del jefe de hogar en caso de no existir se escoje otro
+## Exploración y creación de variables latentes
+
+```{r Estadísticas descriptivas}
+# 
+
+
+# Tiempo de residencia en lugar en que se encuentra actualmente
+resumen_meses_lugar <- data_migracion %>%
+  group_by(intro5, meses_en_lugar) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(intro5) %>%
+  mutate(
+    pct = round(100 * n / sum(n), 1)   # porcentaje dentro de cada ciudad
+  ) %>%
+  arrange(intro5, meses_en_lugar)
+resumen_meses_lugar
+
+# Motivo por el que migró a residencia actual 
 resumen_motivos <- data_migracion %>%
   group_by(intro5) %>%
   summarise(
@@ -329,18 +508,93 @@ resumen_motivos <- data_migracion %>%
     .groups = "drop"
   )
 
+# Intención de migrar en 6 meses
+resumen_intencion_6M <- data_migracion %>%
+  group_by(intro5) %>%
+  summarise(
+    sinmov = sum(`6M_sinmov`, na.rm = TRUE),
+    mudar_barrio = sum(`6M_Mudar_barrio`, na.rm = TRUE),
+    depto = sum(`6M_Depto`, na.rm = TRUE),
+    venezuela = sum(`6M_Venezuela`, na.rm = TRUE),
+    otro_pais = sum(`6M_OtroPais`, na.rm = TRUE),
+    mismo_dpto = sum(`6M_MismoDpto`, na.rm = TRUE),
+    .groups = "drop"
+  )
+resumen_intencion_6M
+
+
+# ACCESO A AGUA
+resumen_agua <- data_migracion %>%
+  distinct(id_hogar, intro5, Acueducto_casa, AguaPublica_fueradecasa,
+           Agua_FuentesNaturales, Agua_FuentesPrivadas, Agua_NoAcceso) %>%
+  group_by(intro5) %>%
+  summarise(
+    hogares_con_Acueducto = sum(Acueducto_casa, na.rm = TRUE),
+    hogares_con_AguaPublica_fuera = sum(AguaPublica_fueradecasa, na.rm = TRUE),
+    hogares_con_AguaNatural = sum(Agua_FuentesNaturales, na.rm = TRUE),
+    hogares_con_AguaPrivada = sum(Agua_FuentesPrivadas, na.rm = TRUE),
+    hogares_sin_Agua = sum(Agua_NoAcceso, na.rm = TRUE),
+    total_hogares = n(),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    pct_Acueducto = round(100 * hogares_con_Acueducto / total_hogares, 1),
+    pct_AguaPublica_fuera = round(100 * hogares_con_AguaPublica_fuera / total_hogares, 1),
+    pct_AguaNatural = round(100 * hogares_con_AguaNatural / total_hogares, 1),
+    pct_AguaPrivada = round(100 * hogares_con_AguaPrivada / total_hogares, 1),
+    pct_NoAcceso = round(100 * hogares_sin_Agua / total_hogares, 1)
+  )
+
+# CAMINAR PARA ACCEDER A AGUA (CORTO < 30 MIN, LARGO > 30 MIN)
+resumen_caminar <- data_migracion %>%
+  distinct(id_hogar, intro5, Agua_caminar_largo, Agua_caminar_corto) %>%
+  group_by(intro5) %>%
+  summarise(
+    hogares_largo = sum(Agua_caminar_largo, na.rm = TRUE),
+    hogares_corto = sum(Agua_caminar_corto, na.rm = TRUE),
+    total_hogares = n(),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    pct_largo = round(100 * hogares_largo / total_hogares, 1),
+    pct_corto = round(100 * hogares_corto / total_hogares, 1)
+  ) %>%
+  arrange(desc(total_hogares))
+resumen_caminar
+
+
+# ACCESO A SANEAMIENTO
+resumen_saneamiento <- data_migracion %>%
+  distinct(id_hogar, intro5, 
+           Saneamiento_deCalidad, Saneamiento_noCalidad, 
+           Saneamiento_Letrina, Saneamiento_Privado, 
+           Saneamiento_UsoPublico, Saneamiento_SinCobertura) %>%
+  group_by(intro5) %>%
+  summarise(
+    hogares_deCalidad     = sum(Saneamiento_deCalidad, na.rm = TRUE),
+    hogares_noCalidad     = sum(Saneamiento_noCalidad, na.rm = TRUE),
+    hogares_Letrina       = sum(Saneamiento_Letrina, na.rm = TRUE),
+    hogares_Privado       = sum(Saneamiento_Privado, na.rm = TRUE),
+    hogares_UsoPublico    = sum(Saneamiento_UsoPublico, na.rm = TRUE),
+    hogares_SinCobertura  = sum(Saneamiento_SinCobertura, na.rm = TRUE),
+    total_hogares         = n(),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    pct_deCalidad    = round(100 * hogares_deCalidad / total_hogares, 1),
+    pct_noCalidad    = round(100 * hogares_noCalidad / total_hogares, 1),
+    pct_Letrina      = round(100 * hogares_Letrina / total_hogares, 1),
+    pct_Privado      = round(100 * hogares_Privado / total_hogares, 1),
+    pct_UsoPublico   = round(100 * hogares_UsoPublico / total_hogares, 1),
+    pct_SinCobertura = round(100 * hogares_SinCobertura / total_hogares, 1)
+  ) %>%
+  arrange(desc(total_hogares))
+resumen_saneamiento
 ```
 
-```{r K. AGUA, SANEAMIENTO E HIGIENE (WASH)}
-#########################################
-# MIGRAR EN PRÓXIMOS 6 MESES
-#########################################
-data_migracion %>%
-  count(wash1) 
+## Cortar base a nivel de observación de interés
 
-```
-
-```{r Filyto ciudad y creacion variable hacinamiento}
+```{r Filtro ciudad y creacion variable hacinamiento}
 # --- Filtrar Bogotá
 data_bogota <- data_migracion %>%
   filter(intro5 == "bogota. d.c.")
@@ -363,10 +617,7 @@ data_filtrada <- data_filtrada %>%
       personas_cuarto > 3 ~ "Crítico"
     )
   )
-
 ```
-
-Se prioriza el registro del jefe de hogar en caso de no existir se escoje otro
 
 ```{r Filtro Jefe de hogar}
 # Variables únicas (riesgo desalojo, intención moverse, tiempo residencia)
