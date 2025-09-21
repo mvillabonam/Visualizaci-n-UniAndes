@@ -61,6 +61,7 @@ limpiar_texto <- function(df) {
 # --- Aplicar a tus bases
 data_migracion_hogares  <- limpiar_texto(data_migracion_hogares)
 data_migracion_personas <- limpiar_texto(data_migracion_personas)
+col_mpios <- limpiar_texto(col_mpios)
 ```
 
 ```{r Union bases}
