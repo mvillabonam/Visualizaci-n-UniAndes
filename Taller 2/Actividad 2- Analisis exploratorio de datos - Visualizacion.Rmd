@@ -643,7 +643,7 @@ data_filtrada <- data_filtrada %>%
 
 ```{r Filtro Jefe de hogar}
 # Variables únicas (riesgo desalojo, intención moverse, tiempo residencia)
-vars_unica <- c("miembros1", "alojamiento7", "demo22", "demo12a")
+vars_unica <- c("miembros1", "alojamiento7")
 ```
 
 ```{r NA}
@@ -1059,6 +1059,7 @@ resumen_gasto_viv <- data_filtrada %>%
 # --- Resumen estadístico del gasto en vivienda
 print(resumen_gasto_viv) 
 ```
+
 ```{r Gasto en vivienda}
 # --- Revisar NA en variables de gasto
 colSums(is.na(data_filtrada[, c("san52_alim", "san53_viv", 
@@ -1113,4 +1114,3 @@ ggplot(data_filtrada, aes(x = hacinamiento, y = pct_vivienda, fill = hacinamient
   scale_y_continuous(labels = percent_format(scale = 1)) +  # convierte a %
   theme(legend.position = "none")
 ```
-
