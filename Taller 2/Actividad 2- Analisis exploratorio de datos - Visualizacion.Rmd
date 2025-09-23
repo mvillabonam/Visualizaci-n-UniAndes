@@ -210,8 +210,7 @@ data_migracion <- data_migracion %>%
 data_migracion <- data_migracion %>%
   group_by(id_hogar) %>%
   mutate(
-    carencia_servicios = as.integer(any(
-      demo21_desal_viv == 1 | demo21_no_alim == 1 | 
+    carencia_servicios = as.integer(any( demo21_no_alim == 1 | 
         demo21_no_acces_sal == 1| demo21_acc_edu == 1|
         demo21_acc_edu_nna ==1),
       na.rm = TRUE
@@ -222,11 +221,9 @@ data_migracion <- data_migracion %>%
   group_by(id_hogar) %>%
   mutate(
     discriminacion = as.integer(any(
-      demo21_suf_disc == 1 | demo21_desal_viv == 1),
+      demo21_suf_disc == 1 ),
       na.rm = TRUE
     )) %>% ungroup()
-
-# Moverse por otras causas
 
 ##############################################
 # AÑOS
@@ -244,10 +241,9 @@ data_migracion <- data_migracion %>%
 #########################################
 # MIGRAR EN PRÓXIMOS 6 MESES
 #########################################
-
 data_migracion <- data_migracion %>%
   mutate(
-    `6M_sinmov`      = ifelse(demo22 == "no tienen la intencion de moverse", 1, 0),
+    `6M_sinmov`      = ifelse(demo22 == "no tienen la intencion de moverse", 1, 0), 
     `6M_Mudar_barrio`= ifelse(demo22 == "si, nos vamos a mudar de barrio al interior de esta ciudad", 1, 0),
     `6M_Depto`       = ifelse(demo22 == "si, nos vamos a cambiar a otro departamento al interior de colombia", 1, 0),
     `6M_Venezuela`   = ifelse(demo22 == "si, irnos a venezuela", 1, 0),
@@ -507,6 +503,21 @@ Se prioriza el registro del jefe de hogar en caso de no existir se escoje otro
 ## Exploración y creación de variables latentes
 
 ```{r Estadísticas descriptivas}
+# Intención de migrar en 6 meses
+resumen_intencion_6M <- data_migracion %>%
+  group_by(intro5) %>%
+  summarise(
+    sinmov = sum(`6M_sinmov`, na.rm = TRUE),
+    mudar_barrio = sum(`6M_Mudar_barrio`, na.rm = TRUE),
+    depto = sum(`6M_Depto`, na.rm = TRUE),
+    venezuela = sum(`6M_Venezuela`, na.rm = TRUE),
+    otro_pais = sum(`6M_OtroPais`, na.rm = TRUE),
+    mismo_dpto = sum(`6M_MismoDpto`, na.rm = TRUE),
+    .groups = "drop"
+  )
+resumen_intencion_6M
+
+
 # Tiempo de residencia en lugar en que se encuentra actualmente
 resumen_meses_lugar <- data_migracion %>%
   group_by(intro5, meses_en_lugar) %>%
@@ -531,22 +542,6 @@ resumen_motivos <- data_migracion %>%
     alimentos      = sum(Migro_por_alimentos, na.rm = TRUE),
     .groups = "drop"
   )
-
-# Intención de migrar en 6 meses
-resumen_intencion_6M <- data_migracion %>%
-  group_by(intro5) %>%
-  summarise(
-    sinmov = sum(`6M_sinmov`, na.rm = TRUE),
-    mudar_barrio = sum(`6M_Mudar_barrio`, na.rm = TRUE),
-    depto = sum(`6M_Depto`, na.rm = TRUE),
-    venezuela = sum(`6M_Venezuela`, na.rm = TRUE),
-    otro_pais = sum(`6M_OtroPais`, na.rm = TRUE),
-    mismo_dpto = sum(`6M_MismoDpto`, na.rm = TRUE),
-    .groups = "drop"
-  )
-resumen_intencion_6M
-
-
 # ACCESO A AGUA
 resumen_agua <- data_migracion %>%
   distinct(id_hogar, intro5, Acueducto_casa, AguaPublica_fueradecasa,
