@@ -36,8 +36,7 @@ setwd(path)
 
 # --- Cargar datos 
 data <- file.path(path, "data/2025 JNA VP.xlsx")
-# Adicional para Visualización
-col_mpios <- st_read("data/shapes.shp", quiet = TRUE)
+
 
 data_migracion_hogares  <- read_excel(data, sheet = "Hogares") %>% clean_names()
 data_migracion_personas <- read_excel(data, sheet = "Personas") %>% clean_names()
@@ -61,7 +60,6 @@ limpiar_texto <- function(df) {
 # --- Aplicar a tus bases
 data_migracion_hogares  <- limpiar_texto(data_migracion_hogares)
 data_migracion_personas <- limpiar_texto(data_migracion_personas)
-col_mpios <- limpiar_texto(col_mpios)
 ```
 
 ```{r Union bases}
@@ -640,7 +638,7 @@ data_filtrada <- data_filtrada %>%
 
 ```{r Filtro Jefe de hogar}
 # Variables únicas (riesgo desalojo, intención moverse, tiempo residencia)
-vars_unica <- c("miembros1", "alojamiento7", "demo22", "demo12a")
+vars_unica <- c("miembros1", "alojamiento7")
 ```
 
 ```{r NA}
@@ -694,18 +692,14 @@ vars_financieras <- c(
   "mediosvida5_mediosvida5_donaciones",
   "mediosvida5_mediosvida5_notiene",  
   "mediosvida5_mediosvida5_otra",   
-  "mediosvida5_mediosvida5_nosabe",  
-  "mediosvida5_mediosvida5_prefiereno",    
   
   # Productos financieros
   "mediosvida7_mediosvida7_cuenta_ahorro",
   "mediosvida7_mediosvida7_cuenta_corriente",
-  "mediosvida7_mediosvida7_cdt",
   "mediosvida7_mediosvida7_billetera_electronica",
   "mediosvida7_mediosvida7_deposito_bajo_monto",
   "mediosvida7_mediosvida7_microcredito",
   "mediosvida7_mediosvida7_prestamo_vivienda",
-  "mediosvida7_mediosvida7_prestamo_vehiculo",
   "mediosvida7_mediosvida7_prestamo_de_libre_inversion",
   "mediosvida7_mediosvida7_tarjeta_de_credito",
   "mediosvida7_mediosvida7_otro",  
@@ -827,7 +821,9 @@ resumen_mv5 <- data_filtrada %>%
 
 ```{r comparacion variables de medios de vida}
 # --- Gráfico Medios de Vida 5 (Ingresos) ---
-ggplot(resumen_mv5, aes(x = producto, y = porcentaje_hogares, fill = hacinamiento)) +
+resumen_mv5 %>%
+  filter(!is.na(porcentaje_hogares), porcentaje_hogares > 0) %>%
+  ggplot(aes(x = producto, y = porcentaje_hogares, fill = hacinamiento)) +
   geom_col(position = "dodge") +
   labs(
     title = "¿Actualmente en su hogar cuáles son las principales fuentes de ingresos/dinero?",
@@ -862,11 +858,14 @@ resumen_mv7 <- data_filtrada %>%
 
 ```{r comparacion variables de medios de vida}
 # --- Medios de vida 7 ---
+
 # --- Gráfico Medios de Vida 7 (Productos Financieros) ---
-ggplot(resumen_mv7, aes(x = producto, y = porcentaje_hogares, fill = hacinamiento)) +
+resumen_mv7 %>%
+  filter(porcentaje_hogares > 0) %>%   # 🔹 Elimina categorías sin info
+  ggplot(aes(x = producto, y = porcentaje_hogares, fill = hacinamiento)) +
   geom_col(position = "dodge") +
   labs(
-    title = "¿Qué tipo de productos financieros tiene su hogar actualmente en Colombia?",
+    title = "¿Qué tipo de productos financieros tiene su hogar actualmente en Bogota?",
     x = "Producto financiero",
     y = "% de hogares"
   ) +
@@ -876,7 +875,7 @@ ggplot(resumen_mv7, aes(x = producto, y = porcentaje_hogares, fill = hacinamient
   )
 ```
 
-```{r comparacion variables de alojamiento}
+```{r Problemas de vivienda}
 preg_multi <- c("alojamiento3")
 
 cols_multi <- names(data_filtrada)[str_detect(
@@ -885,7 +884,7 @@ cols_multi <- names(data_filtrada)[str_detect(
 )]
 ```
 
-```{r comparacion variables de alojamiento}
+```{r Problemas de vivienda}
 data_alojamiento3 <- data_filtrada %>%
   pivot_longer(
     cols = all_of(cols_multi),
@@ -897,7 +896,7 @@ data_alojamiento3 <- data_filtrada %>%
   mutate(respuesta = str_remove(respuesta, "^alojamiento3_"))
 ```
 
-```{r comparacion variables de alojamiento}
+```{r Problemas de vivienda}
 resumen_aloj3 <- data_alojamiento3 %>%
   count(respuesta, name = "conteo") %>%
   arrange(desc(conteo))
@@ -906,7 +905,7 @@ resumen_aloj3
 
 ```
 
-```{r comparacion variables de alojamiento}
+```{r Problemas de vivienda}
 ggplot(resumen_aloj3, aes(x = reorder(respuesta, -conteo), y = conteo, fill = respuesta)) +
   geom_col() +
   theme_minimal() +
@@ -919,7 +918,8 @@ ggplot(resumen_aloj3, aes(x = reorder(respuesta, -conteo), y = conteo, fill = re
         legend.position = "none")
 
 ```
-```{r comparacion variables de alojamiento}
+
+```{r Problemas de vivienda}
 # Pasar a formato largo (solo respuestas marcadas = 1)
 data_aloj3 <- data_filtrada %>%
   pivot_longer(
@@ -931,7 +931,7 @@ data_aloj3 <- data_filtrada %>%
   filter(valor == 1)
 ```
 
-```{r comparacion variables de alojamiento}
+```{r Problemas de vivienda}
 resumen_aloj3_menciones <- data_aloj3 %>%
   count(respuesta, name = "conteo") %>%
   arrange(desc(conteo))%>%
@@ -939,7 +939,7 @@ resumen_aloj3_menciones <- data_aloj3 %>%
 
 ```
 
-```{r comparacion variables de alojamiento}
+```{r Problemas de vivienda}
 resumen_aloj3_hogar <- data_aloj3 %>%
   group_by(respuesta) %>%
   summarise(n_hogares = n_distinct(id_hogar), .groups = "drop")%>%
@@ -947,7 +947,7 @@ resumen_aloj3_hogar <- data_aloj3 %>%
 
 ```
 
-```{r comparacion variables de alojamiento}
+```{r Problemas de vivienda}
 plot_aloj3_menciones <- ggplot(resumen_aloj3_menciones,
                                aes(x = respuesta, y = conteo, fill = respuesta)) +
   geom_col() +
@@ -967,4 +967,145 @@ plot_aloj3_hogar <- ggplot(resumen_aloj3_hogar,
 # Mostrar juntos
 plot_aloj3_menciones + plot_aloj3_hogar
 
+```
+
+
+```{r Problemas de vivienda}
+vars_entorno <- c(
+  "alojamiento3_alojamiento3_no_conflic",
+  "alojamiento3_alojamiento3_no_higiene",
+  "alojamiento3_alojamiento3_no_lnfaestruc",
+  "alojamiento3_alojamiento3_no_privacidad",
+  "alojamiento3_alojamiento3_desastres",
+  "alojamiento3_alojamiento3_ninguna",
+  "alojamiento3_alojamiento3_otro"
+  )
+```
+
+```{r Problemas de vivienda}
+resumen_entorno <- data_filtrada %>%
+  group_by(hacinamiento) %>%
+  summarise(across(all_of(vars_entorno), ~ sum(. == "1", na.rm = TRUE))) 
+
+resumen_entorno
+```
+
+
+```{r Problemas de vivienda}
+
+resumen_aloj3_hacinamiento <- resumen_entorno %>%
+  select(hacinamiento, starts_with("alojamiento3")) %>% 
+  pivot_longer(
+    cols = -hacinamiento,
+    names_to = "problema",
+    values_to = "conteo"
+  ) %>%
+  group_by(hacinamiento) %>%
+  mutate(
+    total = sum(conteo, na.rm = TRUE),
+    porcentaje = round((conteo / total) * 100, 1),
+    problema = gsub("alojamiento3_alojamiento3_", "", problema)  # limpiar nombres
+  ) %>%
+  left_join(totales_hogares, by = "hacinamiento") %>%
+  mutate(
+    porcentaje_hogares = round((conteo / total_hogares) * 100, 1),
+    producto = str_remove(problema, "alojamiento3_alojamiento3_")
+  )
+
+
+# --- Gráfico Problemas de vivienda ---
+ggplot(resumen_aloj3_hacinamiento, aes(x = problema, y = porcentaje_hogares, fill = hacinamiento)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Problemas relacionados con la vivienda y el entorno",
+    x = "Problema reportado",
+    y = "% de hogares"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+```{r Gasto en vivienda}
+# Resumen de la variable de gasto en vivienda
+summary(data_filtrada$san53_viv)
+
+# Revisar cuántos NA hay
+sum(is.na(data_filtrada$san53_viv))
+```
+
+```{r Gasto en vivienda}
+# --- Resumen estadístico del gasto en vivienda
+resumen_gasto_viv <- data_filtrada %>%
+  group_by(hacinamiento) %>%
+  summarise(
+    n = n(),
+    media = mean(san53_viv, na.rm = TRUE),
+    mediana = median(san53_viv, na.rm = TRUE),
+    p25 = quantile(san53_viv, 0.25, na.rm = TRUE),
+    p75 = quantile(san53_viv, 0.75, na.rm = TRUE),
+    maximo = max(san53_viv, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+```{r Gasto en vivienda}
+# --- Resumen estadístico del gasto en vivienda
+print(resumen_gasto_viv) 
+```
+
+```{r Gasto en vivienda}
+# --- Revisar NA en variables de gasto
+colSums(is.na(data_filtrada[, c("san52_alim", "san53_viv", 
+                                "san54_serv", "san55_sal", 
+                                "san56_edu", "san57_otros")]))
+
+# --- Revisar NA en gasto_total y pct_vivienda
+sum(is.na(data_filtrada$gasto_total))
+sum(is.na(data_filtrada$pct_vivienda))
+
+# --- Proporción de NA en pct_vivienda
+mean(is.na(data_filtrada$pct_vivienda))
+```
+
+```{r Gasto en vivienda}
+# --- Crear variable de gasto total
+data_filtrada <- data_filtrada %>%
+  mutate(
+    gasto_total = rowSums(across(c(san52_alim, san53_viv, san54_serv,
+                                   san55_sal, san56_edu, san57_otros)), na.rm = TRUE),
+    pct_vivienda = if_else(gasto_total > 0, (san53_viv / gasto_total) * 100, NA_real_)
+  )
+
+# --- Revisar tabla de resumen
+resumen_pct_viv <- data_filtrada %>%
+  group_by(hacinamiento) %>%
+  summarise(
+    n = n(),
+    media = mean(pct_vivienda, na.rm = TRUE),
+    mediana = median(pct_vivienda, na.rm = TRUE),
+    p25 = quantile(pct_vivienda, 0.25, na.rm = TRUE),
+    p75 = quantile(pct_vivienda, 0.75, na.rm = TRUE),
+    maximo = max(pct_vivienda, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+```{r Gasto en vivienda}
+print(resumen_pct_viv)
+```
+
+```{r Gasto en vivienda}
+ggplot(data_filtrada, aes(x = hacinamiento, y = pct_vivienda, fill = hacinamiento)) +
+  geom_violin(trim = FALSE, alpha = 0.6) +
+  geom_boxplot(width = 0.1, outlier.shape = NA) +
+  theme_minimal(base_size = 12) +
+  labs(
+    title = "Porcentaje del gasto total destinado a vivienda",
+    x = "Nivel de hacinamiento",
+    y = "% del gasto en vivienda"
+  ) +
+  scale_y_continuous(labels = percent_format(scale = 1)) +  # convierte a %
+  theme(legend.position = "none")
 ```
