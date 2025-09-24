@@ -1156,13 +1156,35 @@ tabla_necesidades <- data_filtrada %>%
     .groups = "drop"
   ) %>%
   mutate(proporcion = conteo_1 /  nrow(data_filtrada)) %>%
-  arrange(desc(proporcion))
+  arrange(desc(proporcion)) %>%
+  mutate(
+    variable_label = recode(variable,
+      "aap6a_aap6_comida"        = "Comida",
+      "aap6a_aap6_empleo"        = "Empleo",
+      "aap6a_aap6_alojamiento"   = "Alojamiento",
+      "aap6a_aap6_atencion_med"  = "Atención médica",
+      "aap6a_aap6_medicamentos"  = "Medicamentos",
+      "aap6a_aap6_articulos_hog" = "Artículos del hogar",
+      "aap6a_aap6_educ"          = "Educación",
+      "aap6a_aap6_deudas"        = "Deudas",
+      "aap6a_aap6_agua_med"      = "Agua",
+      "aap6a_aap6_transporte"    = "Transporte",
+      "aap6a_aap6_articulos_hig" = "Artículos de higiene",
+      "aap6a_aap6_comunicacion"  = "Comunicación",
+      "aap6a_aap6_apoyo_psicolegal" = "Apoyo psico-legal",
+      "aap6a_aap6_apoyo_psico"   = "Apoyo psicológico",
+      "aap6a_aap6_semillas"      = "Semillas",
+      "aap6a_aap6_servicios_san" = "Servicios sanitarios",
+      "aap6a_aap6_otro"          = "Otro",
+      "aap6a_aap6_ninguno"       = "Ninguno",
+      "aap6a_aap6_nosabe"        = "No sabe",
+      "aap6a_aap6_noresponde"    = "No responde",
+      "aap6a_aap6_asistencia_tec"= "Asistencia técnica",
+      .default = variable
+    )
+  )
 
-tabla_necesidades
-
-
-
-ggplot(tabla_necesidades, aes(x = reorder(variable, proporcion),
+ggplot(tabla_necesidades, aes(x = reorder(variable_label, proporcion),
                               y = proporcion)) +
   geom_col(fill = "steelblue") +
   geom_text(aes(label = scales::percent(proporcion, accuracy = 0.1)),
@@ -1175,6 +1197,7 @@ ggplot(tabla_necesidades, aes(x = reorder(variable, proporcion),
   ) +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1),
                      expand = expansion(mult = c(0, .1)))
+
 
 
 ```
@@ -1340,6 +1363,61 @@ ggplot(necesidades_hacinamiento, aes(x = grupo, y = conteo, fill = grupo)) +
   theme(
     strip.text = element_text(size = 11, face = "bold"),
     axis.text.x = element_text(angle = 45, hjust = 1, size = 7), # más pequeño
+    axis.title.x = element_text(margin = margin(t = 10))
+  )
+
+```
+
+
+```{r Cruce necesidades vs hacinamiento}
+
+# Calcular totales por tipo de hacinamiento (para base de porcentajes)
+totales <- tabla_necesidades_agrupada %>%
+  group_by(hacinamiento) %>%
+  summarise(total_hogares = n(), .groups = "drop")
+
+# Transformar a formato largo y calcular porcentajes
+necesidades_hacinamiento <- tabla_necesidades_agrupada %>%
+  select(hacinamiento,
+         grupo_medios,
+         grupo_vivienda,
+         grupo_alimentos,
+         grupo_salud,
+         grupo_proteccion,
+         grupo_noclas) %>%
+  pivot_longer(
+    cols = starts_with("grupo"),
+    names_to = "grupo",
+    values_to = "valor"
+  ) %>%
+  filter(valor == TRUE | valor == 1) %>%
+  group_by(hacinamiento, grupo) %>%
+  summarise(conteo = n(), .groups = "drop") %>%
+  left_join(totales, by = "hacinamiento") %>%
+  mutate(
+    pct = (conteo / total_hogares) * 100,
+    grupo = recode(grupo,
+      grupo_medios     = "Medios de vida y economía",
+      grupo_vivienda   = "Vivienda y servicios básicos",
+      grupo_alimentos  = "Alimentación y artículos básicos",
+      grupo_salud      = "Salud y bienestar",
+      grupo_proteccion = "Protección y educación",
+      grupo_noclas     = "No clasificable"
+    )
+  )
+
+# Gráfica: barras agrupadas por tipo de hacinamiento dentro de cada necesidad
+ggplot(necesidades_hacinamiento, aes(x = grupo, y = pct, fill = hacinamiento)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Porcentaje de hogares con necesidades según tipo de hacinamiento",
+    x = "Grupo de necesidad",
+    y = "Porcentaje de hogares",
+    fill = "Tipo de hacinamiento"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
     axis.title.x = element_text(margin = margin(t = 10))
   )
 
@@ -1626,8 +1704,6 @@ ggplot(cruce_dificultades,
 ```
 ```{r Grafico DIFICULTADES}
 
-
-
 cruce_dificultades_long <- data_bogota %>%
   select(meses_en_lugar, all_of(vars_dificultades)) %>%
   pivot_longer(cols = -meses_en_lugar,
@@ -1635,8 +1711,22 @@ cruce_dificultades_long <- data_bogota %>%
                values_to = "valor") %>%
   filter(valor == 1) %>%
   count(meses_en_lugar, dificultad, name = "frecuencia") %>%
-  mutate(dificultad = str_wrap(dificultad, width = 25))  
-
+  mutate(
+    dificultad = recode(dificultad,
+      "miembros24b_dificultades_nodocu"       = "Falta de documentos",
+      "miembros24b_dificultades_familia"      = "Responsabilidades familiares",
+      "miembros24b_dificultades_discrimina"   = "Discriminación",
+      "miembros24b_dificultades_noconocimi"   = "Falta de conocimiento",
+      "miembros24b_dificultades_noempleo"     = "No hay empleo disponible",
+      "miembros24b_dificultades_noofertas"    = "No hay ofertas adecuadas",
+      "miembros24b_dificultades_noexperiencia"= "Falta de experiencia",
+      "miembros24b_dificultades_otra"         = "Otra dificultad",
+      "miembros24b_nosabe"                    = "No sabe",
+      "miembros24b_noresponde"                = "Prefiere no responder",
+      .default = dificultad
+    ),
+    dificultad = str_wrap(dificultad, width = 25)  # salto de línea automático
+  )
 
 ggplot(cruce_dificultades_long,
        aes(x = meses_en_lugar, y = frecuencia, fill = dificultad)) +
@@ -1649,10 +1739,10 @@ ggplot(cruce_dificultades_long,
   ) +
   theme_minimal() +
   theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+    axis.text.x   = element_text(angle = 45, hjust = 1, size = 9),
     legend.position = "bottom",
-    legend.title = element_text(size = 8),   
-    legend.text = element_text(size = 7)     
+    legend.title = element_text(size = 8),
+    legend.text  = element_text(size = 7)
   ) +
   guides(fill = guide_legend(nrow = 3, byrow = TRUE))
 
