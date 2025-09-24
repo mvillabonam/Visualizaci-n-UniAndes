@@ -1016,6 +1016,15 @@ resumen_aloj3_hacinamiento <- resumen_entorno %>%
 # --- Gráfico Problemas de vivienda ---
 ggplot(resumen_aloj3_hacinamiento, aes(x = problema, y = porcentaje_hogares, fill = hacinamiento)) +
   geom_col(position = "dodge") +
+  scale_x_discrete(labels = c(
+    "desastres"     = "Desastres",
+    "ninguna"       = "Ninguna",
+    "no_conflic"    = "Conflicto",
+    "no_higiene"    = "No Higiene",
+    "no_lnfaestruc" = "No Infraestructura",
+    "no_privacidad" = "No Privacidad",
+    "otro"          = "Otros"
+  )) +
   labs(
     title = "Problemas relacionados con la vivienda y el entorno",
     x = "Problema reportado",
@@ -1745,6 +1754,7 @@ ggplot(cruce_dificultades_long,
     legend.text  = element_text(size = 7)
   ) +
   guides(fill = guide_legend(nrow = 3, byrow = TRUE))
+
 
 
 ```
