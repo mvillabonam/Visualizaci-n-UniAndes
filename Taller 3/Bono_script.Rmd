@@ -1,0 +1,295 @@
+---
+title: "Bono"
+subtitle: "Facultad de Economía, Universidad de los Andes"
+author: "Javier Amaya Nieto y Julian Delgado Gutierrez"
+date: "2025-09-25"
+output: html_document
+---
+
+#Ambiente
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Preparación del entorno -------------------------------------------
+rm(list = ls())              # Limpiar memoria de objetos
+gc()                         # Liberar memoria no usada
+closeAllConnections()        # Cerrar conexiones abiertas
+
+# Cargar librerías -------------------------------------------------
+library(pacman)
+p_load(
+  tidyverse, data.table, lubridate, readxl, ggthemes, plotly,
+  janitor, openxlsx, writexl, stringi, patchwork, skimr,
+  sf, osmdata, boot
+)
+
+# Definir carpeta de datos (ruta relativa) ------------------------
+path <- file.path(getwd(), "data")
+
+```
+
+#Limpieza y resumen inicial
+
+```{r}
+# Importar datos de PIB y CO2 ------------------------------------
+pib_file <- file.path(path, "PIB.xls")
+co2_file <- file.path(path, "CO2.xls")
+
+data_pib <- read_excel(pib_file, sheet = "Data", skip = 3) %>% clean_names()
+data_co2 <- read_excel(co2_file, sheet = "Data", skip = 3) %>% clean_names()
+
+# Seleccionar columnas de interés para 2023 ---------------------
+pib_2023 <- data_pib %>%
+  select(country_code, pib_2023 = x2023)
+
+co2_2023 <- data_co2 %>%
+  select(country_code, co2_2023 = x2023)
+
+# Integrar datasets por código de país -------------------------
+data_join <- left_join(pib_2023, co2_2023, by = "country_code") %>%
+  drop_na()
+
+# Clasificación: Alto vs. Bajo PIB -----------------------------
+data_join <- data_join %>%
+  mutate(grupo_pib = if_else(
+    pib_2023 >= median(pib_2023, na.rm = TRUE),
+    "Alto PIB per cápita",
+    "Bajo PIB per cápita"
+  ))
+
+# Resumen descriptivo      ----------------------------------
+resumen <- data_join %>%
+  group_by(grupo_pib) %>%
+  summarise(promedio_co2 = mean(co2_2023, na.rm = TRUE))
+
+print(resumen)
+
+# Separando los DF --------------------------------------------
+d1 <- data_join %>% filter(grupo_pib=="Alto PIB per cápita")
+d2 <- data_join %>% filter(grupo_pib=="Bajo PIB per cápita")
+
+```
+
+# Calculando los IC 95%
+
+```{r}
+# ============================================================
+# Paso 1. Función de media para bootstrap
+# ============================================================
+boot_mean <- function(data, indices) {
+  d <- data[indices, ]              
+  mean(d$co2_2023)                  # ya no verificamos NA
+}
+
+# ============================================================
+# Paso 2. Función que devuelve media y ambos IC95% (BCa y Percentil)
+# ============================================================
+summarize_boot_both <- function(df, etiqueta, R = 10000, seed = 123){
+  set.seed(seed)
+  b  <- boot::boot(df, statistic = boot_mean, R = R)
+  ci <- boot::boot.ci(b, type = c("bca", "perc"))
+  
+  # Extraer ambos IC (si alguno no se puede calcular, queda NA)
+  lwr_bca <- if (!is.null(ci$bca))    ci$bca[4]    else NA_real_
+  upr_bca <- if (!is.null(ci$bca))    ci$bca[5]    else NA_real_
+  lwr_per <- if (!is.null(ci$percent)) ci$percent[4] else NA_real_
+  upr_per <- if (!is.null(ci$percent)) ci$percent[5] else NA_real_
+  
+  tibble::tibble(
+    grupo_pib      = etiqueta,
+    n_paises       = nrow(df),
+    mean_co2       = mean(df$co2_2023),
+    boot_R         = R,
+    ic95_low_bca   = lwr_bca,
+    ic95_high_bca  = upr_bca,
+    ic95_low_perc  = lwr_per,
+    ic95_high_perc = upr_per
+  )
+}
+
+# ============================================================
+# Paso 3. Aplicar a cada grupo (Alto / Bajo PIB) y redondear
+# ============================================================
+tabla_ic_wide <- dplyr::bind_rows(
+  summarize_boot_both(d1, "Alto PIB per cápita"),
+  summarize_boot_both(d2, "Bajo PIB per cápita")
+) %>%
+  dplyr::mutate(dplyr::across(dplyr::where(is.numeric), ~ round(.x, 3)))
+
+print(tabla_ic_wide)
+
+```
+
+
+La tabla presenta los resultados del análisis bootstrap de la media de emisiones de CO₂ per cápita en 2023, comparando países de alto y bajo PIB per cápita. Para los países con alto PIB per cápita (n = 120), la media estimada fue de 7.44 toneladas de CO₂ per cápita, con un intervalo de confianza del 95% BCa entre 6.29 y 9.86 y un intervalo percentil muy similar entre 6.07 y 9.20. Estos valores confirman que, en promedio, las emisiones de los países más ricos son sustancialmente más altas, y que la estimación es robusta aun cuando el método BCa ajusta el rango para contemplar la asimetría de la distribución.
+
+En contraste, los países con bajo PIB per cápita (n = 119) muestran una media de 1.50 toneladas de CO₂ per cápita, con un intervalo de confianza del 95% BCa entre 1.23 y 1.85 y un intervalo percentil entre 1.21 y 1.81. Aquí, la concordancia casi total entre ambos métodos refleja una distribución más simétrica y un nivel de precisión mayor en la estimación. En conjunto, la tabla evidencia una diferencia marcada y consistente entre ambos grupos: los países más ricos emiten, en promedio, alrededor de cinco veces más CO₂ per cápita que los países más pobres. A continuación, presentamos esta misma información pero mostrando la distribución real de las estimaciones y localizndo los IC usando los dos diferentes métodos. 
+
+# Visualización de los posibles IC
+```{r}
+# ============================================================
+# 2. Función para generar distribución bootstrap y graficar
+# ============================================================
+plot_boot_ci <- function(df, titulo, R = 10000, seed = 123){
+  set.seed(seed)
+  b <- boot::boot(data = df, statistic = boot_mean, R = R)
+  
+  # Intervalos
+  ci <- boot::boot.ci(b, type = c("bca", "perc"))
+  lwr_perc <- ci$percent[4]; upr_perc <- ci$percent[5]
+  lwr_bca  <- ci$bca[4];     upr_bca  <- ci$bca[5]
+  
+  # Convertir a tibble para ggplot
+  tibble(val = b$t) %>%
+    ggplot(aes(x = val)) +
+    geom_histogram(aes(y = ..density..), bins = 50, fill = "skyblue", alpha = 0.6) +
+    geom_density(color = "blue", size = 1) +
+    geom_vline(xintercept = c(lwr_perc, upr_perc), color = "red", linetype = "dashed", size = 1) +
+    geom_vline(xintercept = c(lwr_bca, upr_bca), color = "green", linetype = "dashed", size = 1) +
+    labs(
+      title = paste0("Distribución bootstrap de la media de CO2 - ", titulo),
+      subtitle = "Rojo = Percentil | Verde = BCa",
+      x = "Media bootstrap CO2 per cápita",
+      y = "Densidad"
+    ) +
+    theme_minimal(base_size = 14)
+}
+
+# ============================================================
+# 3. Ejecutar para Alto y Bajo PIB
+# ============================================================
+p1 <- plot_boot_ci(d1, "Alto PIB per cápita")
+p2 <- plot_boot_ci(d2, "Bajo PIB per cápita")
+
+# Mostrar lado a lado
+library(patchwork)
+p1 + p2
+
+# Crear carpeta si no existe
+dir.create(file.path(getwd(),"figuras"), recursive = TRUE, showWarnings = FALSE)
+
+# Ruta de salida
+fig_path <- file.path(getwd(),"figuras")
+
+# Combinar en un solo objeto
+p_comb <- p1 + p2
+
+# Exportar en PNG
+ggsave(filename = file.path(fig_path, "Distribucion_bootstrap_CO2.png"),
+       plot = p_comb, width = 16, height = 6, dpi = 300)
+
+```
+Los gráficos muestran la distribución de las medias de emisiones de CO₂ obtenidas mediante bootstrap para los dos grupos de países. En el caso de los países con alto PIB per cápita, la distribución de las medias se concentra entre 6 y 9 toneladas de CO₂ per cápita, pero con una ligera asimetría hacia valores más altos. Esto se refleja en que el intervalo BCa (líneas verdes) es más amplio que el percentil (líneas rojas), extendiéndose un poco más hacia arriba para corregir el sesgo y cubrir la cola superior de la distribución. En otras palabras, aunque la estimación central es estable, el método BCa reconoce que puede haber mayor incertidumbre en los valores altos y lo incorpora en el intervalo.
+
+En contraste, los países con bajo PIB per cápita presentan una distribución de medias centrada en torno a 1.5 toneladas de CO₂ per cápita, con una forma mucho más simétrica. En este caso, los intervalos percentil y BCa prácticamente coinciden, lo que indica que no hay un sesgo importante ni asimetría marcada en la distribución. Esto se traduce en estimaciones muy precisas y en intervalos de confianza estrechos. En conjunto, los gráficos ilustran no solo la diferencia de magnitud en las emisiones entre ambos grupos, sino también cómo la elección del método de intervalo puede afectar la interpretación, especialmente cuando la distribución no es perfectamente simétrica, como sucede en el grupo de mayor riqueza.
+
+# Comportamiento del SE según la cantidad de repeticiones
+
+
+```{r}
+# ============================================================
+# SE bootstrap vs número de réplicas (gráficos separados)
+# ============================================================
+
+library(dplyr)
+library(purrr)
+library(ggplot2)
+library(boot)
+
+# --- Función estadístico: media de CO2 (sin NA) ---
+boot_mean <- function(data, indices) {
+  mean(data[indices, "co2_2023", drop = TRUE])
+}
+
+# --- SE bootstrap para un R dado ---
+boot_se_mean <- function(df, R, seed = 123){
+  set.seed(seed)
+  b <- boot::boot(data = df, statistic = boot_mean, R = R)
+  sd(b$t)  # SE = desviación estándar de las réplicas
+}
+
+# --- Grid de R ---
+grid_R <- seq(200, 30000, by = 100)
+
+# --- Calcular SE por grupo ---
+df_se_alto <- tibble(
+  R  = grid_R,
+  SE = map_dbl(grid_R, ~ boot_se_mean(d1, R = .x, seed = 123))
+)
+
+df_se_bajo <- tibble(
+  R  = grid_R,
+  SE = map_dbl(grid_R, ~ boot_se_mean(d2, R = .x, seed = 123))
+)
+
+# --- Función para detectar “punto de estabilización” ---
+# Regla: mejora relativa < 1% por 3 pasos seguidos
+find_plateau_R <- function(R, SE, rel_tol = 0.01, k = 3){
+  if (length(SE) < k + 1) return(NA_real_)
+  rel_drop <- pmax(0, -diff(SE) / head(SE, -1))  # reducción relativa paso a paso
+  n <- length(rel_drop)
+  for (i in seq(k, n)) {
+    if (all(rel_drop[(i-k+1):i] < rel_tol)) {
+      return(R[i + 1])  # R en el punto donde ya se estabilizó
+    }
+  }
+  return(NA_real_)
+}
+
+R_star_alto <- find_plateau_R(df_se_alto$R, df_se_alto$SE, rel_tol = 0.01, k = 3)
+R_star_bajo <- find_plateau_R(df_se_bajo$R, df_se_bajo$SE, rel_tol = 0.01, k = 3)
+
+# --- Gráfico para ALTO PIB (solo) ---
+p_alto <- ggplot(df_se_alto, aes(x = R, y = SE)) +
+  geom_line(size = 1) +
+  geom_point() +
+  {if (!is.na(R_star_alto)) geom_vline(xintercept = R_star_alto, linetype = "dashed")} +
+  {if (!is.na(R_star_alto)) annotate("text", x = R_star_alto, y = max(df_se_alto$SE),
+                                     label = paste0("≈ estabiliza en R = ", R_star_alto),
+                                     vjust = -0.5, angle = 90)} +
+  labs(
+    title = "SE bootstrap de la media de CO2 vs. R — Alto PIB per cápita",
+    subtitle = "Línea punteada: punto de estabilización (mejora < 1% en 3 pasos)",
+    x = "Número de réplicas bootstrap (R)",
+    y = "SE bootstrap",
+    caption = paste0("SE estabiliza en R = ", R_star_alto)
+  ) +
+  theme_minimal(base_size = 13)
+
+# --- Gráfico para BAJO PIB (solo) ---
+p_bajo <- ggplot(df_se_bajo, aes(x = R, y = SE)) +
+  geom_line(size = 1) +
+  geom_point() +
+  {if (!is.na(R_star_bajo)) geom_vline(xintercept = R_star_bajo, linetype = "dashed")} +
+  {if (!is.na(R_star_bajo)) annotate("text", x = R_star_bajo, y = max(df_se_bajo$SE),
+                                     label = paste0("≈ estabiliza en R = ", R_star_bajo),
+                                     vjust = -0.5, angle = 90)} +
+  labs(
+    title = "SE bootstrap de la media de CO2 vs. R — Bajo PIB per cápita",
+    subtitle = "Línea punteada: punto de estabilización (mejora < 1% en 3 pasos)",
+    x = "Número de réplicas bootstrap (R)",
+    y = "SE bootstrap",
+    caption = paste0("SE estabiliza en R = ", R_star_bajo)
+  ) +
+  theme_minimal(base_size = 13)
+
+# Mostrar por separado
+print(p_alto)
+print(p_bajo)
+
+# Crear carpeta si no existe
+dir.create(file.path(getwd(), "figuras"), recursive = TRUE, showWarnings = FALSE)
+
+# Ruta de salida
+fig_path <- file.path(getwd(), "figuras")
+
+# Guardar en PNG
+ggsave(filename = file.path(fig_path, "SE_bootstrap_vs_R_AltoPIB.png"),
+       plot = p_alto, width = 12, height = 6, dpi = 300, bg="white")
+
+ggsave(filename = file.path(fig_path, "SE_bootstrap_vs_R_BajoPIB.png"),
+       plot = p_bajo, width = 12, height = 6, dpi = 300, bg="white")
+
+```
+
