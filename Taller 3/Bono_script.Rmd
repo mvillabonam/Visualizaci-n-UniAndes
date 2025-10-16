@@ -1,8 +1,8 @@
 ---
-title: "Bono"
+title: "Actividad 3"
 subtitle: "Facultad de Economía, Universidad de los Andes"
-author: "Javier Amaya Nieto y Julian Delgado Gutierrez"
-date: "2025-09-25"
+author: "Henry Carvajal (201718787),Julian Delgado (201712798) , Mariana Villabona (201816559)"
+date: "2025-10-15"
 output: html_document
 ---
 
@@ -25,7 +25,22 @@ p_load(
 )
 
 # Definir carpeta de datos (ruta relativa) ------------------------
-path <- file.path(getwd(), "data")
+user <- Sys.getenv("USERNAME")
+
+if (user == "judel") {
+  path <- file.path("C:/Users", "judel", "OneDrive", "Documentos", 
+                    "ANDES", "Semestre 3", "Visualizacion de datos", "Bono")
+} else if (user == "mvill") {
+  path <- file.path("C:/Users", "mvill", "OneDrive", "Transitorio", "OneDrive", 
+                    "Documentos", "GitHub", "Visualizaci-n-UniAndes","Taller 2")
+} else if (user == "hncar") {
+  path <- file.path("C:/Users", "hncar", "Documents", "GitHub", "Visualizaci-n-UniAndes")
+} else {
+  path <- choose.dir(caption = "Selecciona la carpeta con los archivos")
+}
+
+setwd(path)
+cat("Directorio de trabajo:", path, "\n")
 
 ```
 
@@ -292,4 +307,24 @@ ggsave(filename = file.path(fig_path, "SE_bootstrap_vs_R_BajoPIB.png"),
        plot = p_bajo, width = 12, height = 6, dpi = 300, bg="white")
 
 ```
+
+
+```{r}
+# ============================================================
+# Prueba t de diferencia de medias (unilateral a la derecha)
+# ============================================================
+t_test <- t.test(
+  d1$co2_2023,
+  d2$co2_2023,
+  alternative = "greater",  # porque esperamos que Alto PIB > Bajo PIB
+  var.equal = FALSE         # Welch t-test (no asumimos varianzas iguales)
+)
+
+print(t_test)
+```
+Dado que el p-valor ≈ 0.00000000005 es mucho menor que 0.05, rechazamos la hipótesis nula al 5 % de significancia.
+
+Existe evidencia estadísticamente significativa de que los países con mayor PIB per cápita tienen mayores emisiones de CO₂ per cápita.
+
+El intervalo de confianza no incluye el 0, reforzando la conclusión de que la diferencia media es positiva (alrededor de 5.94 toneladas de CO₂ per cápita).
 
