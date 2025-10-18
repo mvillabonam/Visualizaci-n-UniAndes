@@ -21,7 +21,7 @@ library(pacman)
 p_load(
   tidyverse, data.table, lubridate, readxl, ggthemes, plotly,
   janitor, openxlsx, writexl, stringi, patchwork, skimr,
-  sf, osmdata, boot, ggplot2, gridExtra
+  sf, osmdata, boot, ggplot2
 )
 
 # Definir carpeta de datos (ruta relativa) ------------------------
@@ -41,6 +41,13 @@ if (user == "judel") {
 
 setwd(path)
 cat("Directorio de trabajo:", path, "\n")
+
+# Crear carpeta de figuras si no existe
+dir.create(file.path(getwd(),"figuras"), recursive = TRUE, showWarnings = FALSE)
+
+# Ruta de salida
+fig_path <- file.path(getwd(),"figuras")
+
 
 ```
 
@@ -146,7 +153,14 @@ plot_co2 <- ggplot(co2_anual, aes(x = anio, y = promedio_co2)) +
   ) +
   theme_minimal()
 
-grid.arrange(plot_pib, plot_co2, ncol = 2)
+pib_vs_co2 <- plot_pib + plot_co2
+
+pib_vs_co2
+
+
+# Exportar
+ggsave(filename = file.path(fig_path, "Primera_comparacion_pib_co2.png"),
+       plot = pib_vs_co2, width = 16, height = 6, dpi = 300)
 
 
 ```
@@ -326,14 +340,6 @@ p1 <- plot_boot_ci(d1, "Alto PIB per cápita")
 p2 <- plot_boot_ci(d2, "Bajo PIB per cápita")
 
 # Mostrar lado a lado
-library(patchwork)
-p1 + p2
-
-# Crear carpeta si no existe
-dir.create(file.path(getwd(),"figuras"), recursive = TRUE, showWarnings = FALSE)
-
-# Ruta de salida
-fig_path <- file.path(getwd(),"figuras")
 
 # Combinar en un solo objeto
 p_comb <- p1 + p2
