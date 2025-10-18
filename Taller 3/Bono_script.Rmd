@@ -21,7 +21,7 @@ library(pacman)
 p_load(
   tidyverse, data.table, lubridate, readxl, ggthemes, plotly,
   janitor, openxlsx, writexl, stringi, patchwork, skimr,
-  sf, osmdata, boot
+  sf, osmdata, boot, ggplot2, gridExtra
 )
 
 # Definir carpeta de datos (ruta relativa) ------------------------
@@ -53,6 +53,133 @@ co2_file <- file.path(path, "CO2.xls")
 
 data_pib <- read_excel(pib_file, sheet = "Data", skip = 3) %>% clean_names()
 data_co2 <- read_excel(co2_file, sheet = "Data", skip = 3) %>% clean_names()
+
+
+cat("\nColumnas en data_pib:\n")
+print(colnames(data_pib))
+cat("\nColumnas en data_co2:\n")
+print(colnames(data_co2))
+# Se puede observar que se tiene información del PIB y de los niveles de CO2 desde 1960 hasta 2024
+
+
+# Total de países (únicos)
+n_distinct(data_pib$country_name)
+n_distinct(data_co2$country_name)
+# Para un total de 266 paises 
+
+
+
+pib_long <- data_pib %>%
+  pivot_longer(cols = starts_with("x"), names_to = "anio", values_to = "valor_pib") %>%
+  mutate(anio = as.numeric(gsub("x", "", anio)))
+
+co2_long <- data_co2 %>%
+  pivot_longer(cols = starts_with("x"), names_to = "anio", values_to = "valor_co2") %>%
+  mutate(anio = as.numeric(gsub("x", "", anio)))
+
+# Valores extremos para cada tabla
+# PIB
+pib_min <- pib_long %>%
+  filter(valor_pib == min(valor_pib, na.rm = TRUE)) %>%
+  select(country_name, anio, valor_pib)
+
+pib_max <- pib_long %>%
+  filter(valor_pib == max(valor_pib, na.rm = TRUE)) %>%
+  select(country_name, anio, valor_pib)
+#CO2
+co2_min <- co2_long %>%
+  filter(valor_co2 == min(valor_co2, na.rm = TRUE)) %>%
+  select(country_name, anio, valor_co2)
+
+co2_max <- co2_long %>%
+  filter(valor_co2 == max(valor_co2, na.rm = TRUE)) %>%
+  select(country_name, anio, valor_co2)
+
+
+# Observamos como fue el comportamiento general por año
+pib_anual <- pib_long %>%
+  group_by(anio) %>%
+  summarise(promedio_pib = mean(valor_pib, na.rm = TRUE))
+
+co2_anual <- co2_long %>%
+  group_by(anio) %>%
+  summarise(promedio_co2 = mean(valor_co2, na.rm = TRUE))
+
+plot_pib <- ggplot(pib_anual, aes(x = anio, y = promedio_pib)) +
+  geom_line(color = "#E41A1C", size = 1) +
+  geom_point(color = "#E41A1C") +
+  labs(
+    title = "Promedio del PIB per cápita por año",
+    x = "Año",
+    y = "PIB per cápita"
+  ) +
+  theme_minimal()
+
+plot_co2 <- ggplot(co2_anual, aes(x = anio, y = promedio_co2)) +
+  geom_line(color = "#4DAF4A", size = 1) +
+  geom_point(color = "#4DAF4A") +
+  labs(
+    title = "Promedio de las emisiones de dioxido de carbono per cápita por año",
+    x = "Año",
+    y = "emisiones per cápita"
+  ) +
+  theme_minimal()
+
+grid.arrange(plot_pib, plot_co2, ncol = 2)
+
+
+```
+
+
+```{r}
+
+# Ahora especificamente las emisiones de los paises con promedio del pib mas alto y mas bajo
+pib_promedio_pais <- pib_long %>%
+  group_by(country_name) %>%
+  summarise(promedio_pib = mean(valor_pib, na.rm = TRUE)) %>%
+  filter(!is.na(promedio_pib)) %>%
+  arrange(desc(promedio_pib))
+
+
+# Algo interesante es que los dos paises con mayo pib (Monca y Liechtenstein) no cuentan con reporte de emisiones de C02
+paises_mayor_pib <- pib_promedio_pais %>%
+  slice_head(n = 3) %>%
+  pull(country_name)
+
+# Tomar los 5 países con menor PIB promedio
+paises_menor_pib <- pib_promedio_pais %>%
+  slice_tail(n = 3) %>%
+  pull(country_name)
+
+#Filtramos sobre el df de co2
+co2_filtrado <- co2_long %>%
+  filter(country_name %in% c(paises_mayor_pib, paises_menor_pib)) %>%
+  mutate(grupo_pib = case_when(
+    country_name %in% paises_mayor_pib ~ "Mayor PIB promedio",
+    country_name %in% paises_menor_pib ~ "Menor PIB promedio"
+  ))
+
+ggplot(co2_filtrado, aes(x = anio, y = valor_co2, color = country_name)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 1.8) +
+  labs(
+    title = "Evolución de las emisiones per cápita",
+    subtitle = "Comparación de las emisiones historicas entre los 3 países con mayor y menor PIB promedio",
+    x = "Año",
+    y = "Emisiones per cápita (toneladas)",
+    color = "País"
+  ) +
+  scale_color_brewer(palette = "Set1") + 
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    legend.position = "bottom"
+  )
+
+```
+
+```{r}
+
 
 # Seleccionar columnas de interés para 2023 ---------------------
 pib_2023 <- data_pib %>%
