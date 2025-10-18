@@ -306,6 +306,7 @@ La tabla presenta los resultados del análisis bootstrap de la media de emisione
 En contraste, los países con bajo PIB per cápita (n = 119) muestran una media de 1.50 toneladas de CO₂ per cápita, con un intervalo de confianza del 95% BCa entre 1.23 y 1.85 y un intervalo percentil entre 1.21 y 1.81. Aquí, la concordancia casi total entre ambos métodos refleja una distribución más simétrica y un nivel de precisión mayor en la estimación. En conjunto, la tabla evidencia una diferencia marcada y consistente entre ambos grupos: los países más ricos emiten, en promedio, alrededor de cinco veces más CO₂ per cápita que los países más pobres. A continuación, presentamos esta misma información pero mostrando la distribución real de las estimaciones y localizndo los IC usando los dos diferentes métodos. 
 
 # Visualización de los posibles IC
+
 ```{r}
 # ============================================================
 # 2. Función para generar distribución bootstrap y graficar
@@ -342,6 +343,14 @@ p1 <- plot_boot_ci(d1, "Alto PIB per cápita")
 p2 <- plot_boot_ci(d2, "Bajo PIB per cápita")
 
 # Mostrar lado a lado
+library(patchwork)
+p1 + p2
+
+# Crear carpeta si no existe
+dir.create(file.path(getwd(),"figuras"), recursive = TRUE, showWarnings = FALSE)
+
+# Ruta de salida
+fig_path <- file.path(getwd(),"figuras")
 
 # Combinar en un solo objeto
 p_comb <- p1 + p2
@@ -349,8 +358,8 @@ p_comb <- p1 + p2
 # Exportar en PNG
 ggsave(filename = file.path(fig_path, "Distribucion_bootstrap_CO2.png"),
        plot = p_comb, width = 16, height = 6, dpi = 300)
-
 ```
+
 Los gráficos muestran la distribución de las medias de emisiones de CO₂ obtenidas mediante bootstrap para los dos grupos de países. En el caso de los países con alto PIB per cápita, la distribución de las medias se concentra entre 6 y 9 toneladas de CO₂ per cápita, pero con una ligera asimetría hacia valores más altos. Esto se refleja en que el intervalo BCa (líneas verdes) es más amplio que el percentil (líneas rojas), extendiéndose un poco más hacia arriba para corregir el sesgo y cubrir la cola superior de la distribución. En otras palabras, aunque la estimación central es estable, el método BCa reconoce que puede haber mayor incertidumbre en los valores altos y lo incorpora en el intervalo.
 
 En contraste, los países con bajo PIB per cápita presentan una distribución de medias centrada en torno a 1.5 toneladas de CO₂ per cápita, con una forma mucho más simétrica. En este caso, los intervalos percentil y BCa prácticamente coinciden, lo que indica que no hay un sesgo importante ni asimetría marcada en la distribución. Esto se traduce en estimaciones muy precisas y en intervalos de confianza estrechos. En conjunto, los gráficos ilustran no solo la diferencia de magnitud en las emisiones entre ambos grupos, sino también cómo la elección del método de intervalo puede afectar la interpretación, especialmente cuando la distribución no es perfectamente simétrica, como sucede en el grupo de mayor riqueza.
