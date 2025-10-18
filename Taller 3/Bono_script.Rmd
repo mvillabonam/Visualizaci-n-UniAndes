@@ -194,7 +194,7 @@ co2_filtrado <- co2_long %>%
     country_name %in% paises_menor_pib ~ "Menor PIB promedio"
   ))
 
-ggplot(co2_filtrado, aes(x = anio, y = valor_co2, color = country_name)) +
+comparacion_emisiones <- ggplot(co2_filtrado, aes(x = anio, y = valor_co2, color = country_name)) +
   geom_line(size = 1.2) +
   geom_point(size = 1.8) +
   labs(
@@ -210,6 +210,13 @@ ggplot(co2_filtrado, aes(x = anio, y = valor_co2, color = country_name)) +
     plot.title = element_text(face = "bold"),
     legend.position = "bottom"
   )
+
+comparacion_emisiones
+
+# Exportar
+ggsave(filename = file.path(fig_path, "Evolucion de las emisiones.png"),
+       plot = comparacion_emisiones, width = 16, height = 6, dpi = 300)
+
 
 ```
 
