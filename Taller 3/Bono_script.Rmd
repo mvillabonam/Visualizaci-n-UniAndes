@@ -68,7 +68,7 @@ n_distinct(data_co2$country_name)
 # Para un total de 266 paises 
 
 
-
+# Pasamos a formato long y se miran las estadisticas descrpitivas
 pib_long <- data_pib %>%
   pivot_longer(cols = starts_with("x"), names_to = "anio", values_to = "valor_pib") %>%
   mutate(anio = as.numeric(gsub("x", "", anio)))
@@ -76,6 +76,27 @@ pib_long <- data_pib %>%
 co2_long <- data_co2 %>%
   pivot_longer(cols = starts_with("x"), names_to = "anio", values_to = "valor_co2") %>%
   mutate(anio = as.numeric(gsub("x", "", anio)))
+
+summary_pib <- pib_long %>%
+  summarise(
+    promedio = mean(valor_pib, na.rm = TRUE),
+    mediana = median(valor_pib, na.rm = TRUE),
+    desviacion = sd(valor_pib, na.rm = TRUE),
+    minimo = min(valor_pib, na.rm = TRUE),
+    maximo = max(valor_pib, na.rm = TRUE),
+    observaciones = sum(!is.na(valor_pib))
+  )
+
+summary_co2 <- co2_long %>%
+  summarise(
+    promedio = mean(valor_co2, na.rm = TRUE),
+    mediana = median(valor_co2, na.rm = TRUE),
+    desviacion = sd(valor_co2, na.rm = TRUE),
+    minimo = min(valor_co2, na.rm = TRUE),
+    maximo = max(valor_co2, na.rm = TRUE),
+    observaciones = sum(!is.na(valor_co2))
+  )
+
 
 # Valores extremos para cada tabla
 # PIB
