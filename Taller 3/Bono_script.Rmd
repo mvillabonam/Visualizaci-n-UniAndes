@@ -51,6 +51,27 @@ fig_path <- file.path(getwd(),"figuras")
 
 ```
 
+# Introducción y planteamiento del problema
+
+El propósito de este ejercicio es analizar la relación entre el nivel de ingreso de los países —medido a través del **PIB per cápita**— y las **emisiones de dióxido de carbono (CO₂) per cápita**.  
+La literatura económica sugiere que las economías más desarrolladas suelen emitir más CO₂ debido a su mayor nivel de industrialización, transporte y consumo energético.  
+No obstante, teorías como la **Curva Ambiental de Kuznets** proponen que, a partir de cierto nivel de ingreso, las emisiones podrían estabilizarse o disminuir si se adoptan tecnologías más limpias.
+
+### Hipótesis de investigación
+
+- **H₀ (nula):** No hay diferencia en las emisiones promedio de CO₂ entre países con alto y bajo PIB per cápita.  
+- **H₁ (alternativa):** Los países con alto PIB per cápita tienen mayores emisiones promedio de CO₂ per cápita.
+
+El contraste se realiza mediante una **prueba t unilateral a la derecha**, dado que la hipótesis teórica sugiere una dirección específica (mayor PIB → mayores emisiones).
+
+### Errores posibles
+
+- **Error tipo I:** Concluir que los países ricos emiten más CO₂ cuando en realidad no lo hacen.  
+- **Error tipo II:** No detectar una diferencia real cuando sí existe.  
+El primero implica sobreestimar la responsabilidad de los países desarrollados; el segundo, subestimarla, afectando la formulación de políticas ambientales globales.
+
+
+
 #Limpieza y resumen inicial
 
 ```{r}
@@ -533,10 +554,42 @@ t_test <- t.test(
   var.equal = FALSE         # Welch t-test (no asumimos varianzas iguales)
 )
 
-print(t_test)
+
+# Tabla resumen de diferencia de medias
+diff_mean <- mean(d1$co2_2023) - mean(d2$co2_2023)
+tabla_resultados <- data.frame(
+  Grupo_1 = "Alto PIB per cápita",
+  Grupo_2 = "Bajo PIB per cápita",
+  Diferencia_promedio = round(diff_mean, 2),
+  IC_95_Lower = round(t_test$conf.int[1], 2),
+  IC_95_Upper = round(t_test$conf.int[2], 2),
+  p_valor = signif(t_test$p.value, 4)
+)
+tabla_resultados
+
+
 ```
 Dado que el p-valor ≈ 0.00000000005 es mucho menor que 0.05, rechazamos la hipótesis nula al 5 % de significancia.
 
 Existe evidencia estadísticamente significativa de que los países con mayor PIB per cápita tienen mayores emisiones de CO₂ per cápita.
 
 El intervalo de confianza no incluye el 0, reforzando la conclusión de que la diferencia media es positiva (alrededor de 5.94 toneladas de CO₂ per cápita).
+
+
+# Conclusiones e interpretación
+
+Los resultados obtenidos muestran una **diferencia estadísticamente significativa** entre las emisiones per cápita de los países con alto y bajo PIB.  
+El valor del **p-valor < 0.05** y el **intervalo de confianza que no incluye el 0** confirman que los países de mayor ingreso emiten, en promedio, más CO₂ por habitante.
+
+En promedio, los países ricos emiten alrededor de **6 toneladas más de CO₂ per cápita**en el 2023 que los países de bajo ingreso.  
+Este resultado coincide con la evidencia empírica internacional y apoya la hipótesis de que el crecimiento económico está asociado a una mayor huella de carbono.
+
+### Reflexión sobre los errores y robustez del análisis
+
+- El **error tipo I** (falso positivo) implicaría sancionar injustamente a países ricos por diferencias inexistentes; su probabilidad es baja dado el p-valor obtenido.  
+- El **error tipo II** (falso negativo) sería más costoso en términos ambientales, al subestimar una diferencia real.  
+- El uso de métodos **bootstrap** y la exclusión de valores atípicos mejoran la robustez de las estimaciones.  
+
+### Conclusión general
+
+En síntesis, el análisis respalda la hipótesis de que los países con mayor desarrollo económico presentan **emisiones per cápita más altas**, reflejando una relación directa entre el ingreso y la presión ambiental.  
