@@ -54,30 +54,73 @@ fig_path <- file.path(getwd(),"figuras")
 #Limpieza y resumen inicial
 
 ```{r}
-# Importar datos de PIB y CO2 ------------------------------------
+# ============================================================
+# Importar y preparar datos de PIB y CO₂
+# ============================================================
+
 pib_file <- file.path(path, "PIB.xls")
 co2_file <- file.path(path, "CO2.xls")
 
 data_pib <- read_excel(pib_file, sheet = "Data", skip = 3) %>% clean_names()
 data_co2 <- read_excel(co2_file, sheet = "Data", skip = 3) %>% clean_names()
 
-
 cat("\nColumnas en data_pib:\n")
 print(colnames(data_pib))
 cat("\nColumnas en data_co2:\n")
 print(colnames(data_co2))
-# Se puede observar que se tiene información del PIB y de los niveles de CO2 desde 1960 hasta 2024
+cat("\nDatos disponibles desde 1960 hasta 2024\n")
 
+# ============================================================
+# Transformar a formato long y limitar a 2003–2023
+# ============================================================
 
-
-# Pasamos a formato long y se miran las estadisticas descrpitivas
 pib_long <- data_pib %>%
   pivot_longer(cols = starts_with("x"), names_to = "anio", values_to = "valor_pib") %>%
-  mutate(anio = as.numeric(gsub("x", "", anio)))
+  mutate(anio = as.numeric(gsub("x", "", anio))) %>%
+  filter(anio >= 2003, anio <= 2023)
 
 co2_long <- data_co2 %>%
   pivot_longer(cols = starts_with("x"), names_to = "anio", values_to = "valor_co2") %>%
-  mutate(anio = as.numeric(gsub("x", "", anio)))
+  mutate(anio = as.numeric(gsub("x", "", anio))) %>%
+  filter(anio >= 2003, anio <= 2023)
+
+# ============================================================
+# Limpieza de NAs y outliers por año (criterio IQR)
+# ============================================================
+
+# Filtrar valores válidos y positivos
+pib_long <- pib_long %>%
+  filter(!is.na(valor_pib), valor_pib > 0)
+co2_long <- co2_long %>%
+  filter(!is.na(valor_co2), valor_co2 > 0)
+
+# Función para eliminar outliers dentro de cada año
+remove_outliers_by_year <- function(df, value_col){
+  df %>%
+    group_by(anio) %>%
+    mutate(
+      q1 = quantile(.data[[value_col]], 0.25, na.rm = TRUE),
+      q3 = quantile(.data[[value_col]], 0.75, na.rm = TRUE),
+      iqr = q3 - q1,
+      lower = q1 - 1.5 * iqr,
+      upper = q3 + 1.5 * iqr
+    ) %>%
+    ungroup() %>%
+    filter(.data[[value_col]] >= lower, .data[[value_col]] <= upper) %>%
+    select(-q1, -q3, -iqr, -lower, -upper)
+}
+
+# Aplicar la limpieza anual
+pib_long <- remove_outliers_by_year(pib_long, "valor_pib")
+co2_long <- remove_outliers_by_year(co2_long, "valor_co2")
+
+# Mostrar conteo final
+cat("PIB observaciones finales:", nrow(pib_long), "\n")
+cat("CO₂ observaciones finales:", nrow(co2_long), "\n")
+
+# ============================================================
+# Estadísticas descriptivas globales
+# ============================================================
 
 summary_pib <- pib_long %>%
   summarise(
@@ -99,9 +142,10 @@ summary_co2 <- co2_long %>%
     observaciones = sum(!is.na(valor_co2))
   )
 
+# ============================================================
+# Identificar valores extremos dentro del rango limpio
+# ============================================================
 
-# Valores extremos para cada tabla
-# PIB
 pib_min <- pib_long %>%
   filter(valor_pib == min(valor_pib, na.rm = TRUE)) %>%
   select(country_name, anio, valor_pib)
@@ -109,7 +153,7 @@ pib_min <- pib_long %>%
 pib_max <- pib_long %>%
   filter(valor_pib == max(valor_pib, na.rm = TRUE)) %>%
   select(country_name, anio, valor_pib)
-#CO2
+
 co2_min <- co2_long %>%
   filter(valor_co2 == min(valor_co2, na.rm = TRUE)) %>%
   select(country_name, anio, valor_co2)
@@ -118,8 +162,10 @@ co2_max <- co2_long %>%
   filter(valor_co2 == max(valor_co2, na.rm = TRUE)) %>%
   select(country_name, anio, valor_co2)
 
+# ============================================================
+# Promedio global por año (2003–2023)
+# ============================================================
 
-# Observamos como fue el comportamiento general por año
 pib_anual <- pib_long %>%
   group_by(anio) %>%
   summarise(promedio_pib = mean(valor_pib, na.rm = TRUE))
@@ -128,34 +174,37 @@ co2_anual <- co2_long %>%
   group_by(anio) %>%
   summarise(promedio_co2 = mean(valor_co2, na.rm = TRUE))
 
+# ============================================================
+# Gráficos de tendencia global
+# ============================================================
+
 plot_pib <- ggplot(pib_anual, aes(x = anio, y = promedio_pib)) +
-  geom_line(color = "#E41A1C", size = 1) +
-  geom_point(color = "#E41A1C") +
+  geom_line(color = "#E41A1C", size = 1, na.rm = TRUE) +
+  geom_point(color = "#E41A1C", na.rm = TRUE) +
   labs(
-    title = "Promedio del PIB per cápita por año",
+    title = "Promedio del PIB per cápita (2003–2023)",
     x = "Año",
-    y = "PIB per cápita"
+    y = "PIB per cápita (US$)"
   ) +
   theme_minimal()
 
 plot_co2 <- ggplot(co2_anual, aes(x = anio, y = promedio_co2)) +
-  geom_line(color = "#4DAF4A", size = 1) +
-  geom_point(color = "#4DAF4A") +
+  geom_line(color = "#4DAF4A", size = 1, na.rm = TRUE) +
+  geom_point(color = "#4DAF4A", na.rm = TRUE) +
   labs(
-    title = "Promedio de las emisiones de dioxido de carbono per cápita por año",
+    title = "Promedio de emisiones de CO2 per cápita (2003–2023)",
     x = "Año",
-    y = "emisiones per cápita"
+    y = "Emisiones per cápita (toneladas)"
   ) +
   theme_minimal()
 
 pib_vs_co2 <- plot_pib + plot_co2
-
 pib_vs_co2
 
-
-# Exportar
-ggsave(filename = file.path(fig_path, "Primera_comparacion_pib_co2.png"),
-       plot = pib_vs_co2, width = 16, height = 6, dpi = 300)
+ggsave(
+  filename = file.path(fig_path, "Primera_comparacion_pib_co2.png"),
+  plot = pib_vs_co2, width = 16, height = 6, dpi = 300
+)
 
 
 ```
@@ -163,25 +212,24 @@ ggsave(filename = file.path(fig_path, "Primera_comparacion_pib_co2.png"),
 
 ```{r}
 
-# Ahora especificamente las emisiones de los paises con promedio del pib mas alto y mas bajo
+# ============================================================
+# Comparación de países con mayor y menor PIB promedio
+# ============================================================
+
 pib_promedio_pais <- pib_long %>%
   group_by(country_name) %>%
   summarise(promedio_pib = mean(valor_pib, na.rm = TRUE)) %>%
   filter(!is.na(promedio_pib)) %>%
   arrange(desc(promedio_pib))
 
-
-# Algo interesante es que los dos paises con mayo pib (Monaco y Liechtenstein) no cuentan con reporte de emisiones de C02
 paises_mayor_pib <- pib_promedio_pais %>%
   slice_head(n = 3) %>%
   pull(country_name)
 
-# Tomar los 5 países con menor PIB promedio
 paises_menor_pib <- pib_promedio_pais %>%
   slice_tail(n = 3) %>%
   pull(country_name)
 
-#Filtramos sobre el df de co2
 co2_filtrado <- co2_long %>%
   filter(country_name %in% c(paises_mayor_pib, paises_menor_pib)) %>%
   mutate(grupo_pib = case_when(
@@ -190,16 +238,16 @@ co2_filtrado <- co2_long %>%
   ))
 
 comparacion_emisiones <- ggplot(co2_filtrado, aes(x = anio, y = valor_co2, color = country_name)) +
-  geom_line(size = 1.2) +
-  geom_point(size = 1.8) +
+  geom_line(size = 1.2, na.rm = TRUE) +
+  geom_point(size = 1.8, na.rm = TRUE) +
   labs(
-    title = "Evolución de las emisiones per cápita",
-    subtitle = "Comparación de las emisiones historicas entre los 3 países con mayor y menor PIB promedio",
+    title = "Evolución de las emisiones per cápita (2003–2023)",
+    subtitle = "Países con el 3 mayor y 3 menor PIB promedio",
     x = "Año",
     y = "Emisiones per cápita (toneladas)",
     color = "País"
   ) +
-  scale_color_brewer(palette = "Set1") + 
+  scale_color_brewer(palette = "Set1") +
   theme_minimal(base_size = 13) +
   theme(
     plot.title = element_text(face = "bold"),
@@ -208,10 +256,10 @@ comparacion_emisiones <- ggplot(co2_filtrado, aes(x = anio, y = valor_co2, color
 
 comparacion_emisiones
 
-# Exportar
-ggsave(filename = file.path(fig_path, "Evolucion de las emisiones.png"),
-       plot = comparacion_emisiones, width =8, height = 6, dpi = 300)
-
+ggsave(
+  filename = file.path(fig_path, "Evolucion_de_las_emisiones.png"),
+  plot = comparacion_emisiones, width = 8, height = 6, dpi = 300
+)
 
 ```
 
@@ -492,4 +540,3 @@ Dado que el p-valor ≈ 0.00000000005 es mucho menor que 0.05, rechazamos la hip
 Existe evidencia estadísticamente significativa de que los países con mayor PIB per cápita tienen mayores emisiones de CO₂ per cápita.
 
 El intervalo de confianza no incluye el 0, reforzando la conclusión de que la diferencia media es positiva (alrededor de 5.94 toneladas de CO₂ per cápita).
-
