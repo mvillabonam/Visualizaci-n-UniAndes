@@ -171,7 +171,7 @@ pib_promedio_pais <- pib_long %>%
   arrange(desc(promedio_pib))
 
 
-# Algo interesante es que los dos paises con mayo pib (Monca y Liechtenstein) no cuentan con reporte de emisiones de C02
+# Algo interesante es que los dos paises con mayo pib (Monaco y Liechtenstein) no cuentan con reporte de emisiones de C02
 paises_mayor_pib <- pib_promedio_pais %>%
   slice_head(n = 3) %>%
   pull(country_name)
