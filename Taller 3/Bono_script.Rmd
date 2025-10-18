@@ -69,11 +69,6 @@ print(colnames(data_co2))
 # Se puede observar que se tiene información del PIB y de los niveles de CO2 desde 1960 hasta 2024
 
 
-# Total de países (únicos)
-n_distinct(data_pib$country_name)
-n_distinct(data_co2$country_name)
-# Para un total de 266 paises 
-
 
 # Pasamos a formato long y se miran las estadisticas descrpitivas
 pib_long <- data_pib %>%
@@ -215,7 +210,7 @@ comparacion_emisiones
 
 # Exportar
 ggsave(filename = file.path(fig_path, "Evolucion de las emisiones.png"),
-       plot = comparacion_emisiones, width = 16, height = 6, dpi = 300)
+       plot = comparacion_emisiones, width =8, height = 6, dpi = 300)
 
 
 ```
