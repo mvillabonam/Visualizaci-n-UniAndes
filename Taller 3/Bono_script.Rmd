@@ -262,7 +262,6 @@ comparacion_emisiones <- ggplot(co2_filtrado, aes(x = anio, y = valor_co2, color
   geom_line(size = 1.2, na.rm = TRUE) +
   geom_point(size = 1.8, na.rm = TRUE) +
   labs(
-    title = "Evolución de las emisiones per cápita (2003–2023)",
     subtitle = "Países con el 3 mayor y 3 menor PIB promedio",
     x = "Año",
     y = "Emisiones per cápita (toneladas)",
