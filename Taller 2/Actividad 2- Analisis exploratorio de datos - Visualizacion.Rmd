@@ -1,5 +1,5 @@
 ---
-title: "Taller 2 - Visualización y Exploración de bases de datos"
+title: "Proyecto 1 - Visualización y Exploración de bases de datos"
 author: " Henry Carvajal (201718787),Julian Delgado (201712798) , Mariana Villabona (201816559)"
 date: "Visualización y Exploración de datos para ciencias sociales"
 output: html_document
@@ -14,7 +14,7 @@ closeAllConnections()
 # --- Cargar librerías necesarias
 library("pacman")
 require("pacman")
-p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggplot2,openxlsx, writexl,stringi, patchwork, skimr,tidyverse, readxl, ggthemes, plotly,sf,osmdata,dplyr)
+p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggplot2,openxlsx, writexl,stringi, patchwork, skimr,tidyverse, readxl, ggthemes, plotly,sf,osmdata,dplyr, scales)
 
 # --- Definir rutas
 user <- Sys.getenv("USERNAME")
@@ -1065,20 +1065,6 @@ print(resumen_gasto_viv)
 ```
 
 ```{r Gasto en vivienda}
-# --- Revisar NA en variables de gasto
-colSums(is.na(data_filtrada[, c("san52_alim", "san53_viv", 
-                                "san54_serv", "san55_sal", 
-                                "san56_edu", "san57_otros")]))
-
-# --- Revisar NA en gasto_total y pct_vivienda
-sum(is.na(data_filtrada$gasto_total))
-sum(is.na(data_filtrada$pct_vivienda))
-
-# --- Proporción de NA en pct_vivienda
-mean(is.na(data_filtrada$pct_vivienda))
-```
-
-```{r Gasto en vivienda}
 # --- Crear variable de gasto total
 data_filtrada <- data_filtrada %>%
   mutate(
@@ -1102,6 +1088,21 @@ resumen_pct_viv <- data_filtrada %>%
 ```
 
 ```{r Gasto en vivienda}
+# --- Revisar NA en variables de gasto
+colSums(is.na(data_filtrada[, c("san52_alim", "san53_viv", 
+                                "san54_serv", "san55_sal", 
+                                "san56_edu", "san57_otros")]))
+
+# --- Revisar NA en gasto_total y pct_vivienda
+sum(is.na(data_filtrada$gasto_total))
+sum(is.na(data_filtrada$pct_vivienda))
+
+# --- Proporción de NA en pct_vivienda
+mean(is.na(data_filtrada$pct_vivienda))
+```
+
+
+```{r Gasto en vivienda}
 print(resumen_pct_viv)
 ```
 
@@ -1115,7 +1116,7 @@ ggplot(data_filtrada, aes(x = hacinamiento, y = pct_vivienda, fill = hacinamient
     x = "Nivel de hacinamiento",
     y = "% del gasto en vivienda"
   ) +
-  scale_y_continuous(labels = percent_format(scale = 1)) +  # convierte a %
+  scale_y_continuous(labels = label_percent(scale = 1)) + 
   theme(legend.position = "none")
 ```
 
