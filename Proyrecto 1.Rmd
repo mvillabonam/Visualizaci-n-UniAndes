@@ -67,6 +67,8 @@ data_migracion <- data_migracion_hogares %>%
   left_join(data_migracion_personas, by = "id_hogar")
 ```
 
+
+# PARTE I: EDA y VISUALIZACIÓN AJUSTADA 
 ## Exploración y creación de variables latentes
 ```{r A. ELIGIBILIDAD }
 ##############################################
@@ -86,12 +88,14 @@ ggplot(data_migracion, aes(x = demo1)) +
   theme_minimal()
 
 # Densidad por sexo y edad
-ggplot(data_migracion, aes(x = demo1, fill = demo2)) +
+edades <- ggplot(data_migracion, aes(x = demo1, fill = demo2)) +
   geom_density(alpha = 0.5) +
   labs(title = "Densidad de Edad por Sexo",
        x = "Edad",
        y = "Densidad") +
   theme_minimal()
+
+ggsave()
 
 # Probabilidades por edades
 breaks <- pretty(range(data_migracion$demo1, na.rm = TRUE), n = 20)
@@ -1995,6 +1999,7 @@ ggplot(cruce_dificultades_long,
   ) +
   guides(fill = guide_legend(nrow = 3, byrow = TRUE))
 
+```
 
-
+```{r}
 ```
