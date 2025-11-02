@@ -1664,6 +1664,8 @@ Tipo: prueba unilateral (buscamos demostrar mayor vulnerabilidad en Crítico)
 Justificación: la variable 'acceso_financiero' es binaria (0/1), por eso se utiliza
 una prueba de diferencia de proporciones entre dos grupos independientes.
 
+Se esperaría que la prueba arroje resultados significativos para rechazar la H0 ya que según la teoría la población sin hacinamiento presenta una mayor estabilidad económica y un entorno habilitación más favorable, lo que se traduce en mejores condiciones de acceso financiero
+
 ```{r comparacion variables de medios de vida}
 data_test <- data_prueba_hip_producto %>%
   filter(hacinamiento %in% c("Sin hacinamiento", "Crítico")) %>%
@@ -1680,7 +1682,7 @@ prueba
 
 ```
 Dado que el p-valor = 0.2128 es mayor que el nivel de significancia del 5% (α = 0.05), no se rechaza la hipótesis nula.
-No existe evidencia estadísticamente significativa para afirmar que los hogares sin hacinamiento tienen mayor acceso a productos financieros que los hogares en hacinamiento crítico.
+No existe evidencia estadística mente significativa para afirmar que los hogares sin hacinamiento tienen mayor acceso a productos financieros que los hogares en hacinamiento crítico.
 
 Se evaluó si los hogares sin hacinamiento presentan una mayor probabilidad de acceso a productos financieros respecto a aquellos en hacinamiento crítico. La prueba de diferencia de proporciones sin corrección por continuidad mostró que las proporciones de acceso son 0.530 en hogares sin hacinamiento y 0.455 en hogares con hacinamiento crítico. Sin embargo, esta diferencia no es estadísticamente significativa (χ² = 0.6345; p-valor = 0.2128; IC95%: 
 −0.080,1.000).
@@ -1689,7 +1691,7 @@ Por lo tanto, no se rechaza la hipótesis nula, lo cual indica que, con los dato
 
 
 
-Ahora pasamos a la realizacion de esta misma prueba con el grupo de hacinamiento moderado y critico
+** Ahora pasamos a la realización de esta misma prueba con el grupo de hacinamiento moderado y critico
 Hipótesis formal (Acceso financiero: Moderado vs Crítico)
 H0: p_Moderado <= p_Crítico
 H1: p_Moderado > p_Crítico
