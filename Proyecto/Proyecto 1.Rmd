@@ -132,7 +132,7 @@ mapa_personas <- ggplot(mapa_sf) +
     legend.margin = margin(t = -5, b = 5)
   )
 ggsave("stores/mapa_personas.png", mapa_personas, width = 7, height = 5, dpi = 300)
-rm(mapa_sf,col_mpios,agg_migracion,mapa_sf,mapa_personas,std_name, deptos_sf)
+rm(mapa_sf,col_mpios,agg_migracion,mapa_sf,mapa_personas,std_name)
 
 
 ##############################################
@@ -304,6 +304,56 @@ data_migracion <- data_migracion %>%
       na.rm = TRUE
     )) %>% ungroup()
 
+# Gráfico carencias por departamentos 
+df_plot <- data_migracion %>%
+  group_by(nombre_dpt) %>%
+  summarise(
+    carencia_ingresos  = sum(coalesce(carencia_ingresos, 0) == 1, na.rm = TRUE),
+    carencia_servicios = sum(coalesce(carencia_servicios, 0) == 1, na.rm = TRUE),
+    discriminacion     = sum(coalesce(discriminacion, 0) == 1, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = c(carencia_ingresos, carencia_servicios, discriminacion),
+    names_to = "motivo",
+    values_to = "casos"
+  ) %>%
+  mutate(
+    motivo = recode(motivo,
+      carencia_ingresos  = "Carencia de ingresos",
+      carencia_servicios = "Carencia de servicios",
+      discriminacion     = "Discriminación"
+    )
+  ) %>%
+  group_by(nombre_dpt) %>%
+  mutate(total_dpto = sum(casos)) %>%
+  ungroup() %>%
+  mutate(nombre_dpt = reorder(nombre_dpt, total_dpto))
+
+migrar_por <- ggplot(df_plot, aes(x = casos, y = nombre_dpt, fill = motivo)) +
+  geom_col() +
+  scale_fill_manual(
+    values = c(
+      "Carencia de ingresos"  = "darkred",
+      "Carencia de servicios" = "#1F78B4",
+      "Discriminación"        = "darkgray"
+    )
+  ) +
+  labs(
+    x = "Número de casos (personas)",
+    y = "Departamento",
+    fill = "Motivo",
+    title = "Casos reportados por departamento y tipo de vulneración"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    legend.position = "right",
+    plot.title = element_text(face = "bold")
+  )
+ggsave("stores/motivo_migrar_nuevamente.png", migrar_por, width = 8, height = 6, dpi = 300)
+rm (df_plot, migrar_por)
+
 ##############################################
 # AÑOS
 ##############################################
@@ -313,8 +363,8 @@ data_migracion <- data_migracion %>%
     meses_transcurridos = interval(fecha_demo8, today()) %/% months(1),
     anios_en_Col = meses_transcurridos / 12
   )
-
 ```
+
 
 ```{r B. INTENSIONES Y MOVIMIENTOS }
 #########################################
@@ -380,6 +430,67 @@ data_migracion <- data_migracion %>%
     Migro_por_alimentos = ifelse(demo17 == "alimentos", 1, 0)
   )
 
+# Gráfico
+df_plot_mig <- data_migracion %>%
+  group_by(nombre_dpt) %>%
+  summarise(
+    Migro_por_violencia      = sum(coalesce(Migro_por_violencia, 0) == 1, na.rm = TRUE),
+    Migro_por_familia        = sum(coalesce(Migro_por_familia, 0) == 1, na.rm = TRUE),
+    Migro_por_discriminacion = sum(coalesce(Migro_por_discriminacion, 0) == 1, na.rm = TRUE),
+    Migro_por_trabajo        = sum(coalesce(Migro_por_trabajo, 0) == 1, na.rm = TRUE),
+    Migro_por_educacion      = sum(coalesce(Migro_por_educacion, 0) == 1, na.rm = TRUE),
+    Migro_por_des_natural    = sum(coalesce(Migro_por_des_natural, 0) == 1, na.rm = TRUE),
+    Migro_por_alimentos      = sum(coalesce(Migro_por_alimentos, 0) == 1, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = starts_with("Migro_por"),
+    names_to = "motivo",
+    values_to = "casos"
+  ) %>%
+  mutate(
+    motivo = recode(motivo,
+      Migro_por_violencia      = "Violencia / amenazas",
+      Migro_por_familia        = "Reunificación familiar",
+      Migro_por_discriminacion = "Discriminación / persecución",
+      Migro_por_trabajo        = "Trabajo",
+      Migro_por_educacion      = "Educación",
+      Migro_por_des_natural    = "Desastres naturales",
+      Migro_por_alimentos      = "Alimentos"
+    )
+  ) %>%
+  group_by(nombre_dpt) %>%
+  mutate(total_dpto = sum(casos)) %>%
+  ungroup() %>%
+  mutate(nombre_dpt = reorder(nombre_dpt, total_dpto))
+
+migro_por <- ggplot(df_plot_mig, aes(x = casos, y = nombre_dpt, fill = motivo)) +
+  geom_col() +
+  labs(
+    x = "Número de casos (personas)",
+    y = "Departamento",
+    fill = "Motivo de migración",
+    title = "Motivos de migración por departamento"
+  ) +
+  scale_fill_manual(
+    values = c(
+      "Violencia / amenazas"           = "purple",
+      "Reunificación familiar"         = "red",
+      "Discriminación / persecución"   = "#7570b3",
+      "Trabajo"                        = "darkblue",
+      "Educación"                      = "gray",
+      "Desastres naturales"            = "darkgreen",
+      "Alimentos"                      = "salmon"
+    )
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    legend.position = "right",
+    plot.title = element_text(face = "bold")
+  )
+ggsave("stores/motivo_migracion.png", migro_por, width = 8, height = 6, dpi = 300)
+rm (df_plot_mig, migro_por)
 ```
 
 ```{r K. AGUA, SANEAMIENTO E HIGIENE (WASH)}
@@ -688,6 +799,36 @@ resumen_saneamiento <- data_migracion %>%
   ) %>%
   arrange(desc(total_hogares))
 resumen_saneamiento
+
+# Número de miembros en promedio por hogar
+hogares <- data_migracion_sf %>%
+  st_drop_geometry() %>%
+  group_by(id_hogar, nombre_dpt) %>%
+  summarise(personas_hogar = n(), .groups = "drop")
+
+prom_dpto <- hogares %>% # Promedio por departamento
+  group_by(nombre_dpt) %>%
+  summarise(prom_personas_hogar = mean(personas_hogar), .groups = "drop")
+
+mapa_prom <- deptos_sf %>%
+  left_join(prom_dpto, by = "nombre_dpt")
+
+personas_por_hogar <- ggplot(mapa_prom) +
+  geom_sf(aes(fill = prom_personas_hogar), color = "white", linewidth = 0.2) +
+  scale_fill_viridis_c(option = "C", na.value = "grey90",
+                       name = "Promedio\npersonas\npor hogar") +
+  labs(
+    title = "Promedio de personas por hogar por departamento",
+    subtitle = "Población migrante venezolana en Colombia",
+    caption = "Fuente: data_migracion_sf"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    legend.position = "right"
+  )
+ggsave("stores/personas_por_hogar.png", personas_por_hogar, width = 8, height = 6, dpi = 300)
+rm(personas_por_hogar,mapa_prom,prom_dpto,hogares)
 ```
 
 ## Cortar base a nivel de observación de interés
@@ -2076,7 +2217,4 @@ ggplot(cruce_dificultades_long,
     legend.text  = element_text(size = 7)
   ) +
   guides(fill = guide_legend(nrow = 3, byrow = TRUE))
-
-
-
 ```
