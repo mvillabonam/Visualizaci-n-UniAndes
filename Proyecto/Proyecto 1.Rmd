@@ -1004,13 +1004,13 @@ tabla_prueba_hip_producto <- table(
 tabla_prueba_hip_producto
 prop.table(tabla_prueba_hip_producto, 1)
 ```
-De acuerdo con este primer analisis de las proporciones, se sugiere que el acceso financiero no es completamente lineal en su comportamiento
+De acuerdo con este primer análisis de las proporciones, se sugiere que el acceso financiero no es completamente lineal en su comportamiento. Dado esto es importante realizar el análisis de diferencia de proporciones para evaluar si estas diferencias observadas son verdaderamente sistemáticamente significativas.
 
 
 
 
 
-## 1) Primera prueba:
+## 1) Prueba Acceso financiero:
 Hipótesis formal (Acceso financiero: Sin vs Crítico)
 H0: p_Sin >= p_Crítico
 H1: p_Sin < p_Crítico
@@ -1043,6 +1043,7 @@ Por lo tanto, no se rechaza la hipótesis nula, lo cual indica que, con los dato
 
 
 
+Ahora pasamos a la realizacion de esta misma prueba con el grupo de hacinamiento moderado y critico
 Hipótesis formal (Acceso financiero: Moderado vs Crítico)
 H0: p_Moderado <= p_Crítico
 H1: p_Moderado > p_Crítico
@@ -1264,6 +1265,7 @@ tabla_probs_SC
 prop.table(tabla_probs_SC, 1)
 ```
 
+## 2) Prueba de problemas de vivienda
 Hipótesis formal (Problemas vivienda: Sin vs Crítico)
 H0: p_Crítico <= p_Sin
 H1: p_Crítico > p_Sin
@@ -1298,6 +1300,7 @@ Esto confirma que, a mayor severidad del hacinamiento, se intensifican las dific
 
 
 
+Ahora pasamos a la realizacion de esta misma prueba con el grupo de hacinamiento moderado y critico
 Hipótesis formal (Problemas vivienda: Moderado vs Crítico)
 H0: p_Crítico <= p_Moderado
 H1: p_Crítico > p_Moderado
@@ -1411,6 +1414,7 @@ ggplot(data_filtrada, aes(x = hacinamiento, y = pct_vivienda, fill = hacinamient
 ```
 
 
+## 3) Prueba de gasto en vivienda
  Justificación metodológica (gasto en vivienda):
  'pct_vivienda' es una variable cuantitativa continua.
  Se verifica normalidad por grupo con Shapiro-Wilk y homogeneidad de varianzas.
@@ -1447,7 +1451,7 @@ Conclusión general (Parte 2 — Contrastes)
    (p = 0.0547); en comparaciones por pares, sólo Sin vs Moderado resultó significativo (p = 0.045).
  Interpretación: el hacinamiento está asociado a distintas dimensiones de vulnerabilidad;
  la política pública debería priorizar acciones sobre vivienda y acceso financiero para hogares críticos,
- y programas de apoyo socioeconómico para hogares moderados cuya vulnerabilidad está menos visible.
+ y programas de apoyo socio económico para hogares moderados cuya vulnerabilidad está menos visible.
 
 
 
