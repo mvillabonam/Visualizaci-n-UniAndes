@@ -955,12 +955,20 @@ resumen_mv7 %>%
     axis.text.x = element_text(angle = 45, hjust = 1)
   )
 ```
+# PARTE II.EVIDENCIA EMPIRICA Y ESTIMACIÓN
 
+Para evaluar si el hacinamiento en los hogares representa un factor que incrementa la probabilidad de ocurrencia de diferentes problemas sociales, se empleó una prueba de diferencia de proporciones.
 
-Justificación metodológica (proporciones):
-Dado que las variables de interés (acceso_financiero, problemas_viv) son binarias,
+Justificación metodológica: Dado que las variables de interés (acceso_financiero, problemas_viv) son binarias,
 las comparaciones entre dos grupos se realizan mediante pruebas de diferencia de proporciones.
 Usamos prop.test() (sin corrección de continuidad) para estimar la diferencia y obtener p-valor e IC.
+
+
+Expectativa teorica:
+Teóricamente,en concordancia con la literatura que vincula el hacinamiento con vulnerabilidad socioeconómica, se espera que los hogares en condición de hacinamiento presenten una mayor incidencia de problemas  tales como el acceso financiero, dificultades económicas, entre otros, en comparación con aquellos que no la padecen. De esta forma, se esperaría que en las pruebas de hipótesis siguientes exista una mayor vulnerabilidad reflejada en la proporción para los hogares con hacinamiento critico, en contrate con los de hacinamiento moderado o sin hacinamiento.
+
+
+## Analisis preliminar
 
 ```{r comparacion variables de medios de vida}
 # Lista de columnas de productos financieros válidos
@@ -996,7 +1004,13 @@ tabla_prueba_hip_producto <- table(
 tabla_prueba_hip_producto
 prop.table(tabla_prueba_hip_producto, 1)
 ```
+De acuerdo con este primer analisis de las proporciones, se sugiere que el acceso financiero no es completamente lineal en su comportamiento
 
+
+
+
+
+## 1) Primera prueba:
 Hipótesis formal (Acceso financiero: Sin vs Crítico)
 H0: p_Sin >= p_Crítico
 H1: p_Sin < p_Crítico
