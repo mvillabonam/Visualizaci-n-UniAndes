@@ -1682,12 +1682,13 @@ prueba
 
 ```
 Dado que el p-valor = 0.2128 es mayor que el nivel de significancia del 5% (α = 0.05), no se rechaza la hipótesis nula.
-No existe evidencia estadística mente significativa para afirmar que los hogares sin hacinamiento tienen mayor acceso a productos financieros que los hogares en hacinamiento crítico.
+No existe evidencia estadísticamente significativa para afirmar que los hogares sin hacinamiento tienen mayor acceso a productos financieros que los hogares en hacinamiento crítico. Esto significa que la probabilidad de cometer un error tipo I, es decir rechazar incorrectamente la hipótesis nula cuando en realidad es verdadera,  sería del 21.28%, ya que este porcentaje corresponde al total del área de la distribución de probabilidad que se solapa entre ambas hipótesis.
 
-Se evaluó si los hogares sin hacinamiento presentan una mayor probabilidad de acceso a productos financieros respecto a aquellos en hacinamiento crítico. La prueba de diferencia de proporciones sin corrección por continuidad mostró que las proporciones de acceso son 0.530 en hogares sin hacinamiento y 0.455 en hogares con hacinamiento crítico. Sin embargo, esta diferencia no es estadísticamente significativa (χ² = 0.6345; p-valor = 0.2128; IC95%: 
+En esta prueba se evaluó si los hogares sin hacinamiento presentan una mayor probabilidad de acceso a productos financieros respecto a aquellos en hacinamiento crítico. La prueba de diferencia de proporciones sin corrección por continuidad mostró que las proporciones de acceso son 0.530 en hogares sin hacinamiento y 0.455 en hogares con hacinamiento crítico. Sin embargo, esta diferencia no es estadísticamente significativa (χ² = 0.6345; p-valor = 0.2128; IC95%: 
 −0.080,1.000).
 
 Por lo tanto, no se rechaza la hipótesis nula, lo cual indica que, con los datos disponibles, no se puede concluir que el hacinamiento crítico reduzca el acceso financiero en comparación con los hogares no hacinados.
+
 
 
 
@@ -1942,7 +1943,7 @@ prueba_SC <- prop.test(x_SC, n_SC,
 prueba_SC
 ```
 La proporción de hogares que reporta al menos un problema de vivienda o entorno es significativamente mayor en los hogares con hacinamiento crítico (51.5%), en comparación con los hogares sin hacinamiento (23.2%).
-La prueba estadística unilateral para diferencia de proporciones indica que esta diferencia es estadísticamente significativa (χ² = 10.97; p = 0.00046), por lo que se rechaza la hipótesis nula.
+La prueba estadística unilateral para diferencia de proporciones indica que esta diferencia es estadísticamente significativa (χ² = 10.97; p = 0.00046), por lo que se rechaza la hipótesis nula.Dado que el p-valor es muy inferior al nivel de significancia del 5% (α = 0.05), la probabilidad de incurrir en un error tipo I, es menor al 0.05%, lo que otorga un alto nivel de confianza en el resultado obtenido ya que las areas de la distribución que se cruzan son minimas.
 Esto confirma que, a mayor severidad del hacinamiento, se intensifican las dificultades asociadas al entorno y las condiciones de habitabilidad del hogar.
 
 
@@ -2086,7 +2087,7 @@ pairwise.wilcox.test(
 )
 ```
 
-Al evaluar el porcentaje del gasto total del hogar destinado a vivienda según el nivel de hacinamiento, se aplicó la prueba de Kruskal–Wallis debido al incumplimiento del supuesto de normalidad. El resultado no mostró diferencias globales estadísticamente significativas (χ² = 5.81, p = 0.0547).
+Al evaluar el porcentaje del gasto total del hogar destinado a vivienda según el nivel de hacinamiento, se aplicó la prueba de Kruskal–Wallis debido al incumplimiento del supuesto de normalidad. El resultado no mostró diferencias globales estadísticamente significativas (χ² = 5.81, p = 0.0547).En términos del riesgo de error tipo I, este valor indica que la probabilidad de rechazar la hipótesis nula siendo verdadera es del 5.47%, ligeramente superior al nivel de significancia establecido (α = 0.05), por lo que no se rechaza la hipótesis nula.
 Sin embargo, las comparaciones por pares indicaron que los hogares con hacinamiento moderado destinan un porcentaje significativamente menor de su gasto total a vivienda en comparación con los hogares sin hacinamiento (p = 0.045).
 No se encontraron diferencias significativas entre los hogares en hacinamiento crítico y los demás niveles. Esto sugiere que la relación entre gasto en vivienda y hacinamiento no es estrictamente lineal, pues los hogares con hacinamiento moderado pueden estar expuestos a mayores presiones económicas en otras necesidades básicas.
 
