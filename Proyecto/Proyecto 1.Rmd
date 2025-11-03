@@ -1424,6 +1424,78 @@ rm(tab_cont, M, row_tot, col_tot, N, E, R, df_resid, hm_pct, hm_res, p_grid,
    df_necesidades_hacinamiento, base_bogota)
 ```
 
+```{r J. CORRELACIÓN VARIABLE HACINAMIENTO CON GASTO EN VIVIENDA}
+# Resumen de la variable de gasto en vivienda
+summary(data_filtrada$san53_viv)
+# Revisar cuántos NA hay
+sum(is.na(data_filtrada$san53_viv))
+
+# --- Resumen estadístico del gasto en vivienda
+resumen_gasto_viv <- data_filtrada %>%
+  group_by(hacinamiento) %>%
+  summarise(
+    n = n(),
+    media = mean(san53_viv, na.rm = TRUE),
+    mediana = median(san53_viv, na.rm = TRUE),
+    p25 = quantile(san53_viv, 0.25, na.rm = TRUE),
+    p75 = quantile(san53_viv, 0.75, na.rm = TRUE),
+    maximo = max(san53_viv, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# --- Resumen estadístico del gasto en vivienda
+print(resumen_gasto_viv) 
+
+# --- Crear variable de gasto total
+data_filtrada <- data_filtrada %>%
+  mutate(
+    gasto_total = rowSums(across(c(san52_alim, san53_viv, san54_serv,
+                                   san55_sal, san56_edu, san57_otros)), na.rm = TRUE),
+    pct_vivienda = if_else(gasto_total > 0, (san53_viv / gasto_total) * 100, NA_real_)
+  )
+
+# --- Revisar tabla de resumen
+resumen_pct_viv <- data_filtrada %>%
+  group_by(hacinamiento) %>%
+  summarise(
+    n = n(),
+    media = mean(pct_vivienda, na.rm = TRUE),
+    mediana = median(pct_vivienda, na.rm = TRUE),
+    p25 = quantile(pct_vivienda, 0.25, na.rm = TRUE),
+    p75 = quantile(pct_vivienda, 0.75, na.rm = TRUE),
+    maximo = max(pct_vivienda, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# --- Revisar NA en variables de gasto
+colSums(is.na(data_filtrada[, c("san52_alim", "san53_viv", 
+                                "san54_serv", "san55_sal", 
+                                "san56_edu", "san57_otros")]))
+
+# --- Revisar NA en gasto_total y pct_vivienda
+sum(is.na(data_filtrada$gasto_total))
+sum(is.na(data_filtrada$pct_vivienda))
+
+# --- Proporción de NA en pct_vivienda
+mean(is.na(data_filtrada$pct_vivienda))
+
+print(resumen_pct_viv)
+
+# GRÁFICO HACINAMIENTO Y GASTO EN VIVIENDA
+gasto_vivienda <- ggplot(data_filtrada, aes(x = hacinamiento, y = pct_vivienda, fill = hacinamiento)) +
+  geom_violin(trim = FALSE, alpha = 0.6) +
+  geom_boxplot(width = 0.1, outlier.shape = NA) +
+  theme_minimal(base_size = 12) +
+  labs(
+    title = "Porcentaje del gasto total destinado a vivienda",
+    x = "Nivel de hacinamiento",
+    y = "% del gasto en vivienda"
+  ) +
+  scale_y_continuous(labels = label_percent(scale = 1)) + 
+  theme(legend.position = "none")
+ggsave("stores/gasto_vivienda.png", gasto_vivienda, width = 14, height = 6, dpi = 300)
+```
+
 ```{r PERSONAS: MEDIOS DE VIDA E INTEGRACION}
 vars_mediosvida <- c(
   "miembros21",  # Tiempo dedicado 
@@ -1710,9 +1782,9 @@ Expectativa teorica:
 Teóricamente,en concordancia con la literatura que vincula el hacinamiento con vulnerabilidad socioeconómica, se espera que los hogares en condición de hacinamiento presenten una mayor incidencia de problemas  tales como el acceso financiero, dificultades económicas, entre otros, en comparación con aquellos que no la padecen. De esta forma, se esperaría que en las pruebas de hipótesis siguientes exista una mayor vulnerabilidad reflejada en la proporción para los hogares con hacinamiento critico, en contrate con los de hacinamiento moderado o sin hacinamiento.
 
 
-## Analisis preliminar
+## PRUEBA DE HIPÓTESIS: HACIENAMIENO Y PRODUCTOS FINANCIEROS
 
-```{r comparacion variables de medios de vida}
+```{r 1. HACINAMIENTO Y PRODUCTOS FINANCIEROS}
 # Lista de columnas de productos financieros válidos
 productos_prueba_hip <- c(
   "mediosvida7_mediosvida7_cuenta_ahorro",
@@ -1731,14 +1803,12 @@ data_prueba_hip_producto <- data_filtrada %>%
   mutate(acceso_financiero =
            if_else(rowSums(select(., all_of(productos_prueba_hip)) == 1, na.rm = TRUE) > 0,
                    1, 0))
-```
 
-```{r comparacion variables de medios de vida}
+# Data set Hacinamiento y Productos Financieros
 data_test_prueba_hip_producto <- data_prueba_hip_producto %>%
   filter(hacinamiento %in% c("Sin hacinamiento","Moderado", "Crítico"))
-```
 
-```{r comparacion variables de medios de vida}
+# Comparación variables y  medios de vida
 tabla_prueba_hip_producto <- table(
   data_test_prueba_hip_producto$hacinamiento,
   data_test_prueba_hip_producto$acceso_financiero
@@ -1748,12 +1818,8 @@ prop.table(tabla_prueba_hip_producto, 1)
 ```
 De acuerdo con este primer análisis de las proporciones, se sugiere que el acceso financiero no es completamente lineal en su comportamiento. Dado esto es importante realizar el análisis de diferencia de proporciones para evaluar si estas diferencias observadas son verdaderamente sistemáticamente significativas.
 
-
-
-
-
-## 1) Prueba Acceso financiero:
-Hipótesis formal (Acceso financiero: Sin vs Crítico)
+### 1) Prueba Acceso a productos financieros:
+Hipótesis formal (Acceso a productos financiero: Sin vs Crítico)
 H0: p_Sin >= p_Crítico
 H1: p_Sin < p_Crítico
 Tipo: prueba unilateral (buscamos demostrar mayor vulnerabilidad en Crítico)
@@ -1762,7 +1828,7 @@ una prueba de diferencia de proporciones entre dos grupos independientes.
 
 Se esperaría que la prueba arroje resultados significativos para rechazar la H0 ya que según la teoría la población sin hacinamiento presenta una mayor estabilidad económica y un entorno habilitación más favorable, lo que se traduce en mejores condiciones de acceso financiero
 
-```{r comparacion variables de medios de vida}
+```{r 1. SIN HACINAMIENTO vs CRÍTICO Y PRODUCTOS FINANCIEROS}
 data_test <- data_prueba_hip_producto %>%
   filter(hacinamiento %in% c("Sin hacinamiento", "Crítico")) %>%
   droplevels()
@@ -1785,8 +1851,7 @@ En esta prueba se evaluó si los hogares sin hacinamiento presentan una mayor pr
 
 Por lo tanto, no se rechaza la hipótesis nula, lo cual indica que, con los datos disponibles, no se puede concluir que el hacinamiento crítico reduzca el acceso financiero en comparación con los hogares no hacinados.
 
-```{r Grafica prueba 1}
-
+```{r 1. GRÁFICA PRUEBA DE HIPÓTESIS SIN HACINAMIENTO VS CRÍTICO Y PRODUCTOS FINANCIEROS}
 p_valor <- prueba$p.value
 z_obs   <- sqrt(unname(prueba$statistic)) * sign(diff(prueba$estimate))
 alpha   <- 0.05
@@ -1875,14 +1940,10 @@ p_z <- ggplot(df, aes(x)) +
 
 p_z
 
-
 # Guardar en PNG
 ggsave("stores/Distribucion_prueba_acceso_financiero.png",plot = p_z, width = 8, height = 5, dpi = 300)
 
-
 ```
-
-
 
 
 ** Ahora pasamos a la realización de esta misma prueba con el grupo de hacinamiento moderado y critico
@@ -1892,7 +1953,7 @@ H1: p_Moderado < p_Crítico
 Tipo: prueba unilateral
 Justificación: la variable es binaria; comparamos dos proporciones independientes.
 
-```{r comparacion variables de medios de vida}
+```{r  2. HACINAMIENTO MODERADO VS CRÍTICO Y PRODUCTOS FINANCIEROS}
 # Filtrar solo Moderado y Crítico
 data_test_MC <- data_prueba_hip_producto %>%
   filter(hacinamiento %in% c("Moderado", "Crítico")) %>%
@@ -1917,8 +1978,7 @@ prueba_MC
 La proporción de acceso financiero es significativamente mayor en los hogares con hacinamiento moderado (0.763) comparado con los hogares con hacinamiento crítico (0.455), según la prueba de diferencia de proporciones unilateral (χ² = 8.86; p = 0.00146).
 Se rechaza la hipótesis nula, concluyendo que el acceso financiero disminuye de manera estadísticamente significativa cuando el hacinamiento pasa de moderado a crítico.
 
-```{r Grafica prueba 2}
-
+```{r 2. GRÁFICA PRUEBA DE HIPÓTESIS HACINAMIENTO MODERADO VS CRÍTICO Y PRODUCTOS FINANCIEROS}
 p_valor <- prueba_MC$p.value
 z_obs   <- sqrt(unname(prueba_MC$statistic)) * sign(diff(prueba_MC$estimate))
 alpha   <- 0.05
@@ -2014,7 +2074,7 @@ ggsave("stores/Distribucion_prueba_acceso_financiero_2.png",plot = p_z, width = 
 
 ```
 
-
+# PRUEBA DE HIPÓTESIS: HACIENAMIENO Y PRODUCTOS FINANCIEROS
 
 ```{r Problemas de vivienda}
 preg_multi <- c("alojamiento3")
@@ -2041,9 +2101,7 @@ data_alojamiento3 <- data_filtrada %>%
 resumen_aloj3 <- data_alojamiento3 %>%
   count(respuesta, name = "conteo") %>%
   arrange(desc(conteo))
-
 resumen_aloj3
-
 ```
 
 ```{r Problemas de vivienda}
@@ -2336,9 +2394,6 @@ ggsave("stores/Distribucion_prueba_problemas_vivienda.png",plot = p_SC, width = 
 ```
 
 
-
-
-
 Ahora pasamos a la realizacion de esta misma prueba con el grupo de hacinamiento moderado y critico
 Hipótesis formal (Problemas vivienda: Moderado vs Crítico)
 H0: p_Crítico <= p_Moderado
@@ -2457,97 +2512,12 @@ p_SC
 
 # Guardar en PNG
 ggsave("stores/Distribucion_prueba_problemas_vivienda_2.png",plot = p_SC, width = 8, height = 5, dpi = 300)
-
-
 ```
 
 
-```{r Gasto en vivienda}
-# Resumen de la variable de gasto en vivienda
-summary(data_filtrada$san53_viv)
+# PRUEBA DE HIPÓTESIS: HACIENAMIENTO Y GASTO EN VIVIENDA
 
-# Revisar cuántos NA hay
-sum(is.na(data_filtrada$san53_viv))
-```
-
-```{r Gasto en vivienda}
-# --- Resumen estadístico del gasto en vivienda
-resumen_gasto_viv <- data_filtrada %>%
-  group_by(hacinamiento) %>%
-  summarise(
-    n = n(),
-    media = mean(san53_viv, na.rm = TRUE),
-    mediana = median(san53_viv, na.rm = TRUE),
-    p25 = quantile(san53_viv, 0.25, na.rm = TRUE),
-    p75 = quantile(san53_viv, 0.75, na.rm = TRUE),
-    maximo = max(san53_viv, na.rm = TRUE),
-    .groups = "drop"
-  )
-```
-
-```{r Gasto en vivienda}
-# --- Resumen estadístico del gasto en vivienda
-print(resumen_gasto_viv) 
-```
-
-```{r Gasto en vivienda}
-# --- Crear variable de gasto total
-data_filtrada <- data_filtrada %>%
-  mutate(
-    gasto_total = rowSums(across(c(san52_alim, san53_viv, san54_serv,
-                                   san55_sal, san56_edu, san57_otros)), na.rm = TRUE),
-    pct_vivienda = if_else(gasto_total > 0, (san53_viv / gasto_total) * 100, NA_real_)
-  )
-
-# --- Revisar tabla de resumen
-resumen_pct_viv <- data_filtrada %>%
-  group_by(hacinamiento) %>%
-  summarise(
-    n = n(),
-    media = mean(pct_vivienda, na.rm = TRUE),
-    mediana = median(pct_vivienda, na.rm = TRUE),
-    p25 = quantile(pct_vivienda, 0.25, na.rm = TRUE),
-    p75 = quantile(pct_vivienda, 0.75, na.rm = TRUE),
-    maximo = max(pct_vivienda, na.rm = TRUE),
-    .groups = "drop"
-  )
-```
-
-```{r Gasto en vivienda}
-# --- Revisar NA en variables de gasto
-colSums(is.na(data_filtrada[, c("san52_alim", "san53_viv", 
-                                "san54_serv", "san55_sal", 
-                                "san56_edu", "san57_otros")]))
-
-# --- Revisar NA en gasto_total y pct_vivienda
-sum(is.na(data_filtrada$gasto_total))
-sum(is.na(data_filtrada$pct_vivienda))
-
-# --- Proporción de NA en pct_vivienda
-mean(is.na(data_filtrada$pct_vivienda))
-```
-
-
-```{r Gasto en vivienda}
-print(resumen_pct_viv)
-```
-
-```{r Gasto en vivienda}
-ggplot(data_filtrada, aes(x = hacinamiento, y = pct_vivienda, fill = hacinamiento)) +
-  geom_violin(trim = FALSE, alpha = 0.6) +
-  geom_boxplot(width = 0.1, outlier.shape = NA) +
-  theme_minimal(base_size = 12) +
-  labs(
-    title = "Porcentaje del gasto total destinado a vivienda",
-    x = "Nivel de hacinamiento",
-    y = "% del gasto en vivienda"
-  ) +
-  scale_y_continuous(labels = label_percent(scale = 1)) + 
-  theme(legend.position = "none")
-```
-
-
-## 3) Prueba de gasto en vivienda
+## Prueba de gasto en vivienda
  Justificación metodológica (gasto en vivienda):
  'pct_vivienda' es una variable cuantitativa continua.
  Se verifica normalidad por grupo con Shapiro-Wilk y homogeneidad de varianzas.
