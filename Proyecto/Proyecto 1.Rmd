@@ -14,7 +14,7 @@ closeAllConnections()
 # --- Cargar librerías necesarias
 library("pacman")
 require("pacman")
-p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggplot2,openxlsx, writexl,stringi, patchwork, skimr,tidyverse, readxl, ggthemes, plotly,sf,osmdata,dplyr, scales)
+p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggplot2,openxlsx, writexl,stringi, patchwork, boot, skimr,tidyverse, readxl, ggthemes, plotly,sf,osmdata,dplyr, scales)
 
 # --- Definir rutas
 user <- Sys.getenv("USERNAME")
@@ -1778,12 +1778,110 @@ prueba
 
 ```
 Dado que el p-valor = 0.2128 es mayor que el nivel de significancia del 5% (α = 0.05), no se rechaza la hipótesis nula.
-No existe evidencia estadística mente significativa para afirmar que los hogares sin hacinamiento tienen mayor acceso a productos financieros que los hogares en hacinamiento crítico.
+No existe evidencia estadísticamente significativa para afirmar que los hogares sin hacinamiento tienen mayor acceso a productos financieros que los hogares en hacinamiento crítico. Esto significa que la probabilidad de cometer un error tipo I, es decir rechazar incorrectamente la hipótesis nula cuando en realidad es verdadera,  sería del 21.28%, ya que este porcentaje corresponde al total del área de la distribución de probabilidad que se solapa entre ambas hipótesis.
 
-Se evaluó si los hogares sin hacinamiento presentan una mayor probabilidad de acceso a productos financieros respecto a aquellos en hacinamiento crítico. La prueba de diferencia de proporciones sin corrección por continuidad mostró que las proporciones de acceso son 0.530 en hogares sin hacinamiento y 0.455 en hogares con hacinamiento crítico. Sin embargo, esta diferencia no es estadísticamente significativa (χ² = 0.6345; p-valor = 0.2128; IC95%: 
+En esta prueba se evaluó si los hogares sin hacinamiento presentan una mayor probabilidad de acceso a productos financieros respecto a aquellos en hacinamiento crítico. La prueba de diferencia de proporciones sin corrección por continuidad mostró que las proporciones de acceso son 0.530 en hogares sin hacinamiento y 0.455 en hogares con hacinamiento crítico. Sin embargo, esta diferencia no es estadísticamente significativa (χ² = 0.6345; p-valor = 0.2128; IC95%: 
 −0.080,1.000).
 
 Por lo tanto, no se rechaza la hipótesis nula, lo cual indica que, con los datos disponibles, no se puede concluir que el hacinamiento crítico reduzca el acceso financiero en comparación con los hogares no hacinados.
+
+```{r Grafica prueba 1}
+
+p_valor <- prueba$p.value
+z_obs   <- sqrt(unname(prueba$statistic)) * sign(diff(prueba$estimate))
+alpha   <- 0.05
+tipo_prueba <- prueba$alternative  # "two.sided", "greater", "less"
+media <- 0
+
+# Se definen los valores para realizar el grafico-------------
+x <- seq(-4, 4, length.out = 1000)
+df <- tibble(
+  x = x,
+  H0 = dnorm(x, mean = media, sd = 1),
+  H1 = dnorm(x, mean = z_obs, sd = 1)
+)
+
+# Valores críticos e intervalo según tipo de prueba
+if (tipo_prueba == "two.sided") {
+  z_crit <- c(qnorm(alpha / 2), qnorm(1 - alpha / 2))
+  z_IC   <- c(-1.96, 1.96)
+} else if (tipo_prueba == "greater") {
+  z_crit <- c(NA, qnorm(1 - alpha))
+  z_IC   <- c(media, z_crit[2])
+} else {  # "less"
+  z_crit <- c(qnorm(alpha), NA)
+  z_IC   <- c(z_crit[1], media)
+}
+
+z_critico <- ifelse(is.na(z_crit[2]), z_crit[1], z_crit[2])
+
+
+# Gráfico principal---------------------------------------------
+p_z <- ggplot(df, aes(x)) +
+  # Curvas de H0 y H1
+  geom_line(aes(y = H0, color = "H0: sin efecto (μ = 0)"), size = 1.1) +
+  geom_line(aes(y = H1, color = "H1: con efecto observado"), size = 1.1, linetype = "dashed") +
+
+  # Región crítica
+  {
+    if (tipo_prueba == "two.sided") {
+      geom_area(data = df |> filter(x <= z_crit[1]), aes(y = H0), fill = "red", alpha = 0.3) +
+      geom_area(data = df |> filter(x >= z_crit[2]), aes(y = H0), fill = "red", alpha = 0.3)
+    } else if (tipo_prueba == "greater") {
+      geom_area(data = df |> filter(x >= z_crit[2]), aes(y = H0), fill = "red", alpha = 0.3)
+    } else {
+      geom_area(data = df |> filter(x <= z_crit[1]), aes(y = H0), fill = "red", alpha = 0.3)
+    }
+  } +
+
+  # Media e intervalo bajo H₀
+  geom_vline(xintercept = media, color = "gray40", size = 0.8) +
+  geom_vline(xintercept = z_IC, color = "black", linetype = "dotted", size = 0.9) +
+
+  # Marcadores
+  geom_point(aes(x = z_obs, y = 0), color = "black", size = 4, shape = 17) +
+  geom_point(aes(x = z_critico, y = 0), color = "red", size = 4, shape = 17) +
+
+  # Etiquetas
+  annotate("text", x = media, y = 0.42, label = "μ = 0", color = "gray40",
+           size = 4.5, fontface = "italic") +
+  annotate("text", x = z_obs, y = 0.025,
+           label = paste0("Z observado = ", round(z_obs, 3)),
+           color = "black", size = 3.3, vjust = -0.5) +
+  annotate("text", x = z_critico, y = 0.025,
+           label = paste0("Z crítico = ", round(z_critico, 2)),
+           color = "red", size = 3.3, vjust = -0.5) +
+  annotate("text", x = 0, y = -0.02,
+           label = paste0("p-valor = ", round(p_valor, 4)),
+           color = "black", size = 3.5, fontface = "italic") +
+
+  # Estilo general
+  scale_color_manual(values = c(
+    "H0: sin efecto (μ = 0)" = "blue",
+    "H1: con efecto observado" = "darkgreen"
+  )) +
+  coord_cartesian(ylim = c(-0.05, 0.45)) +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "top",
+        plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(size = 10, hjust = 0.5)) +
+  labs(
+    title = "Acceso financiero: prueba de comparación (Sin hacinamiento Vs Hacinamiento crítico)",
+    subtitle = paste0(" Distribución normal estándar (Z) , Prueba unilateral de diferencia de proporciones (α = ", alpha, ")"),
+    x = "Valor Z",
+    y = "Densidad",
+    color = "Distribución"
+  )
+
+p_z
+
+
+# Guardar en PNG
+ggsave("stores/Distribucion_prueba_acceso_financiero.png",plot = p_z, width = 8, height = 5, dpi = 300)
+
+
+```
+
 
 
 
@@ -1818,6 +1916,105 @@ prueba_MC
 ```
 La proporción de acceso financiero es significativamente mayor en los hogares con hacinamiento moderado (0.763) comparado con los hogares con hacinamiento crítico (0.455), según la prueba de diferencia de proporciones unilateral (χ² = 8.86; p = 0.00146).
 Se rechaza la hipótesis nula, concluyendo que el acceso financiero disminuye de manera estadísticamente significativa cuando el hacinamiento pasa de moderado a crítico.
+
+```{r Grafica prueba 2}
+
+p_valor <- prueba_MC$p.value
+z_obs   <- sqrt(unname(prueba_MC$statistic)) * sign(diff(prueba_MC$estimate))
+alpha   <- 0.05
+tipo_prueba <- prueba_MC$alternative  # "two.sided", "greater", "less"
+media <- 0
+
+# Se definen los valores para realizar el grafico-------------
+x <- seq(-4, 4, length.out = 1000)
+df <- tibble(
+  x = x,
+  H0 = dnorm(x, mean = media, sd = 1),
+  H1 = dnorm(x, mean = z_obs, sd = 1)
+)
+
+# Valores críticos e intervalo según tipo de prueba
+if (tipo_prueba == "two.sided") {
+  z_crit <- c(qnorm(alpha / 2), qnorm(1 - alpha / 2))
+  z_IC   <- c(-1.96, 1.96)
+} else if (tipo_prueba == "greater") {
+  z_crit <- c(NA, qnorm(1 - alpha))
+  z_IC   <- c(media, z_crit[2])
+} else {  # "less"
+  z_crit <- c(qnorm(alpha), NA)
+  z_IC   <- c(z_crit[1], media)
+}
+
+z_critico <- ifelse(is.na(z_crit[2]), z_crit[1], z_crit[2])
+
+
+# Gráfico principal---------------------------------------------
+p_z <- ggplot(df, aes(x)) +
+  # Curvas de H0 y H1
+  geom_line(aes(y = H0, color = "H0: sin efecto (μ = 0)"), size = 1.1) +
+  geom_line(aes(y = H1, color = "H1: con efecto observado"), size = 1.1, linetype = "dashed") +
+
+  # Región crítica
+  {
+    if (tipo_prueba == "two.sided") {
+      geom_area(data = df |> filter(x <= z_crit[1]), aes(y = H0), fill = "red", alpha = 0.3) +
+      geom_area(data = df |> filter(x >= z_crit[2]), aes(y = H0), fill = "red", alpha = 0.3)
+    } else if (tipo_prueba == "greater") {
+      geom_area(data = df |> filter(x >= z_crit[2]), aes(y = H0), fill = "red", alpha = 0.3)
+    } else {
+      geom_area(data = df |> filter(x <= z_crit[1]), aes(y = H0), fill = "red", alpha = 0.3)
+    }
+  } +
+
+  # Media e intervalo bajo H₀
+  geom_vline(xintercept = media, color = "gray40", size = 0.8) +
+  geom_vline(xintercept = z_IC, color = "black", linetype = "dotted", size = 0.9) +
+
+  # Marcadores
+  geom_point(aes(x = z_obs, y = 0), color = "black", size = 4, shape = 17) +
+  geom_point(aes(x = z_critico, y = 0), color = "red", size = 4, shape = 17) +
+
+  # Etiquetas
+  annotate("text", x = media, y = 0.42, label = "μ = 0", color = "gray40",
+           size = 4.5, fontface = "italic") +
+  annotate("text", x = z_obs, y = 0.025,
+           label = paste0("Z observado = ", round(z_obs, 3)),
+           color = "black", size = 3.3, vjust = -0.5) +
+  annotate("text", x = z_critico, y = 0.025,
+           label = paste0("Z crítico = ", round(z_critico, 2)),
+           color = "red", size = 3.3, vjust = -0.5) +
+  annotate("text", x = 0, y = -0.02,
+           label = paste0("p-valor = ", round(p_valor, 4)),
+           color = "black", size = 3.5, fontface = "italic") +
+
+  # Estilo general
+  scale_color_manual(values = c(
+    "H0: sin efecto (μ = 0)" = "blue",
+    "H1: con efecto observado" = "darkgreen"
+  )) +
+  coord_cartesian(ylim = c(-0.05, 0.45)) +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "top",
+        plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(size = 10, hjust = 0.5)) +
+  labs(
+    title = "Acceso financiero: prueba de comparación (Hacinamiento moderado Vs Hacinamiento crítico)",
+    subtitle = paste0(" Distribución normal estándar (Z) , Prueba unilateral de diferencia de proporciones (α = ", alpha, ")"),
+    x = "Valor Z",
+    y = "Densidad",
+    color = "Distribución"
+  )
+
+p_z
+
+
+# Guardar en PNG
+ggsave("stores/Distribucion_prueba_acceso_financiero_2.png",plot = p_z, width = 8, height = 5, dpi = 300)
+
+
+```
+
+
 
 ```{r Problemas de vivienda}
 preg_multi <- c("alojamiento3")
@@ -2010,6 +2207,9 @@ tabla_probs_SC
 prop.table(tabla_probs_SC, 1)
 ```
 
+
+
+
 ## 2) Prueba de problemas de vivienda
 Hipótesis formal (Problemas vivienda: Sin vs Crítico)
 H0: p_Crítico <= p_Sin
@@ -2039,8 +2239,102 @@ prueba_SC <- prop.test(x_SC, n_SC,
 prueba_SC
 ```
 La proporción de hogares que reporta al menos un problema de vivienda o entorno es significativamente mayor en los hogares con hacinamiento crítico (51.5%), en comparación con los hogares sin hacinamiento (23.2%).
-La prueba estadística unilateral para diferencia de proporciones indica que esta diferencia es estadísticamente significativa (χ² = 10.97; p = 0.00046), por lo que se rechaza la hipótesis nula.
+La prueba estadística unilateral para diferencia de proporciones indica que esta diferencia es estadísticamente significativa (χ² = 10.97; p = 0.00046), por lo que se rechaza la hipótesis nula.Dado que el p-valor es muy inferior al nivel de significancia del 5% (α = 0.05), la probabilidad de incurrir en un error tipo I, es menor al 0.05%, lo que otorga un alto nivel de confianza en el resultado obtenido ya que las areas de la distribución que se cruzan son minimas.
 Esto confirma que, a mayor severidad del hacinamiento, se intensifican las dificultades asociadas al entorno y las condiciones de habitabilidad del hogar.
+
+```{r Grafico prueba 3}
+
+p_valor <- prueba_SC$p.value
+z_obs   <- sqrt(unname(prueba_SC$statistic)) * sign(diff(prueba_SC$estimate))
+alpha   <- 0.05
+tipo_prueba <- prueba_SC$alternative  # "less"
+media <- 0
+
+# ============================================================
+# Curvas teóricas de H₀ y H₁
+# ============================================================
+x <- seq(-4, 4, length.out = 1000)
+df <- tibble(
+  x = x,
+  H0 = dnorm(x, mean = media, sd = 1),
+  H1 = dnorm(x, mean = z_obs, sd = 1)
+)
+
+# ============================================================
+# Valores críticos e intervalo según tipo de prueba
+# ============================================================
+if (tipo_prueba == "two.sided") {
+  z_crit <- c(qnorm(alpha / 2), qnorm(1 - alpha / 2))
+  z_IC   <- c(-1.96, 1.96)
+} else if (tipo_prueba == "greater") {
+  z_crit <- c(NA, qnorm(1 - alpha))
+  z_IC   <- c(media, z_crit[2])
+} else {  # "less"
+  z_crit <- c(qnorm(alpha), NA)
+  z_IC   <- c(z_crit[1], media)
+}
+
+z_critico <- ifelse(is.na(z_crit[2]), z_crit[1], z_crit[2])
+
+# ============================================================
+# GRAFICAR DISTRIBUCIONES H₀ Y H₁
+# ============================================================
+p_SC <- ggplot(df, aes(x)) +
+  # Curvas de H0 y H1
+  geom_line(aes(y = H0, color = "H0: sin efecto (μ = 0)"), size = 1.1) +
+  geom_line(aes(y = H1, color = "H1: con efecto observado"), size = 1.1, linetype = "dashed") +
+
+  # Región crítica
+  geom_area(data = df |> filter(x <= z_crit[1]), aes(y = H0), fill = "red", alpha = 0.3) +
+
+  # Media e intervalo bajo H₀
+  geom_vline(xintercept = media, color = "gray40", size = 0.8) +
+  geom_vline(xintercept = z_IC, color = "black", linetype = "dotted", size = 0.9) +
+
+  # Marcadores
+  geom_point(aes(x = z_obs, y = 0), color = "black", size = 4, shape = 17) +
+  geom_point(aes(x = z_critico, y = 0), color = "red", size = 4, shape = 17) +
+
+  # Etiquetas
+  annotate("text", x = media, y = 0.42, label = "μ = 0", color = "gray40",
+           size = 4.5, fontface = "italic") +
+  annotate("text", x = z_obs, y = 0.025,
+           label = paste0("Z observado = ", round(z_obs, 3)),
+           color = "black", size = 3.3, vjust = -0.5) +
+  annotate("text", x = z_critico, y = 0.025,
+           label = paste0("Z crítico = ", round(z_critico, 2)),
+           color = "red", size = 3.3, vjust = -0.5) +
+  annotate("text", x = 0, y = -0.02,
+           label = paste0("p-valor = ", round(p_valor, 4)),
+           color = "black", size = 3.5, fontface = "italic") +
+
+  # Estilo general
+  scale_color_manual(values = c(
+    "H0: sin efecto (μ = 0)" = "blue",
+    "H1: con efecto observado" = "darkgreen"
+  )) +
+  coord_cartesian(ylim = c(-0.05, 0.45)) +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "top",
+        plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(size = 10, hjust = 0.5)) +
+  labs(
+    title = "Problemas en Vivienda: prueba de comparación (Sin hacinamiento Vs Hacinamiento crítico)",
+    subtitle = paste0(" Distribución normal estándar (Z) , Prueba unilateral de diferencia de proporciones (α = ", alpha, ")"),
+    x = "Valor Z",
+    y = "Densidad",
+    color = "Distribución"
+  )
+
+p_SC
+
+
+# Guardar en PNG
+ggsave("stores/Distribucion_prueba_problemas_vivienda.png",plot = p_SC, width = 8, height = 5, dpi = 300)
+
+
+```
+
 
 
 
@@ -2073,6 +2367,100 @@ prueba_viv
 ```
 Aunque el porcentaje de hogares que reporta al menos un problema relacionado con la vivienda o el entorno es mayor entre aquellos con hacinamiento crítico (51,5%) respecto a los de hacinamiento moderado (44,1%), la diferencia no es estadísticamente significativa (p = 0,754).
 Esto sugiere que, en esta muestra, las condiciones físicas y ambientales de la vivienda y el entorno no difieren sustancialmente entre niveles de hacinamiento moderado y crítico.
+
+```{r Grafico prueba 4}
+
+p_valor <- prueba_viv$p.value
+z_obs   <- sqrt(unname(prueba_viv$statistic)) * sign(diff(prueba_viv$estimate))
+alpha   <- 0.05
+tipo_prueba <- prueba_viv$alternative  # "less"
+media <- 0
+
+# ============================================================
+# Curvas teóricas de H₀ y H₁
+# ============================================================
+x <- seq(-4, 4, length.out = 1000)
+df <- tibble(
+  x = x,
+  H0 = dnorm(x, mean = media, sd = 1),
+  H1 = dnorm(x, mean = z_obs, sd = 1)
+)
+
+# ============================================================
+# Valores críticos e intervalo según tipo de prueba
+# ============================================================
+if (tipo_prueba == "two.sided") {
+  z_crit <- c(qnorm(alpha / 2), qnorm(1 - alpha / 2))
+  z_IC   <- c(-1.96, 1.96)
+} else if (tipo_prueba == "greater") {
+  z_crit <- c(NA, qnorm(1 - alpha))
+  z_IC   <- c(media, z_crit[2])
+} else {  # "less"
+  z_crit <- c(qnorm(alpha), NA)
+  z_IC   <- c(z_crit[1], media)
+}
+
+z_critico <- ifelse(is.na(z_crit[2]), z_crit[1], z_crit[2])
+
+# ============================================================
+# GRAFICAR DISTRIBUCIONES H₀ Y H₁
+# ============================================================
+p_SC <- ggplot(df, aes(x)) +
+  # Curvas de H0 y H1
+  geom_line(aes(y = H0, color = "H0: sin efecto (μ = 0)"), size = 1.1) +
+  geom_line(aes(y = H1, color = "H1: con efecto observado"), size = 1.1, linetype = "dashed") +
+
+  # Región crítica
+  geom_area(data = df |> filter(x <= z_crit[1]), aes(y = H0), fill = "red", alpha = 0.3) +
+
+  # Media e intervalo bajo H₀
+  geom_vline(xintercept = media, color = "gray40", size = 0.8) +
+  geom_vline(xintercept = z_IC, color = "black", linetype = "dotted", size = 0.9) +
+
+  # Marcadores
+  geom_point(aes(x = z_obs, y = 0), color = "black", size = 4, shape = 17) +
+  geom_point(aes(x = z_critico, y = 0), color = "red", size = 4, shape = 17) +
+
+  # Etiquetas
+  annotate("text", x = media, y = 0.42, label = "μ = 0", color = "gray40",
+           size = 4.5, fontface = "italic") +
+  annotate("text", x = z_obs, y = 0.025,
+           label = paste0("Z observado = ", round(z_obs, 3)),
+           color = "black", size = 3.3, vjust = -0.5) +
+  annotate("text", x = z_critico, y = 0.025,
+           label = paste0("Z crítico = ", round(z_critico, 2)),
+           color = "red", size = 3.3, vjust = -0.5) +
+  annotate("text", x = 0, y = -0.02,
+           label = paste0("p-valor = ", round(p_valor, 4)),
+           color = "black", size = 3.5, fontface = "italic") +
+
+  # Estilo general
+  scale_color_manual(values = c(
+    "H0: sin efecto (μ = 0)" = "blue",
+    "H1: con efecto observado" = "darkgreen"
+  )) +
+  coord_cartesian(ylim = c(-0.05, 0.45)) +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "top",
+        plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(size = 10, hjust = 0.5)) +
+  labs(
+    title = "Problemas en Vivienda: prueba de comparación (Hacinamiento moderado Vs Hacinamiento crítico)",
+    subtitle = paste0(" Distribución normal estándar (Z) , Prueba unilateral de diferencia de proporciones (α = ", alpha, ")"),
+    x = "Valor Z",
+    y = "Densidad",
+    color = "Distribución"
+  )
+
+p_SC
+
+
+# Guardar en PNG
+ggsave("stores/Distribucion_prueba_problemas_vivienda_2.png",plot = p_SC, width = 8, height = 5, dpi = 300)
+
+
+```
+
 
 ```{r Gasto en vivienda}
 # Resumen de la variable de gasto en vivienda
@@ -2183,7 +2571,7 @@ pairwise.wilcox.test(
 )
 ```
 
-Al evaluar el porcentaje del gasto total del hogar destinado a vivienda según el nivel de hacinamiento, se aplicó la prueba de Kruskal–Wallis debido al incumplimiento del supuesto de normalidad. El resultado no mostró diferencias globales estadísticamente significativas (χ² = 5.81, p = 0.0547).
+Al evaluar el porcentaje del gasto total del hogar destinado a vivienda según el nivel de hacinamiento, se aplicó la prueba de Kruskal–Wallis debido al incumplimiento del supuesto de normalidad. El resultado no mostró diferencias globales estadísticamente significativas (χ² = 5.81, p = 0.0547).En términos del riesgo de error tipo I, este valor indica que la probabilidad de rechazar la hipótesis nula siendo verdadera es del 5.47%, ligeramente superior al nivel de significancia establecido (α = 0.05), por lo que no se rechaza la hipótesis nula.
 Sin embargo, las comparaciones por pares indicaron que los hogares con hacinamiento moderado destinan un porcentaje significativamente menor de su gasto total a vivienda en comparación con los hogares sin hacinamiento (p = 0.045).
 No se encontraron diferencias significativas entre los hogares en hacinamiento crítico y los demás niveles. Esto sugiere que la relación entre gasto en vivienda y hacinamiento no es estrictamente lineal, pues los hogares con hacinamiento moderado pueden estar expuestos a mayores presiones económicas en otras necesidades básicas.
 
