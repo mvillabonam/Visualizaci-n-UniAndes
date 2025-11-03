@@ -1720,8 +1720,8 @@ ggsave("stores/Distribucion_prueba_acceso_financiero.png",plot = p_z, width = 8,
 
 ** Ahora pasamos a la realización de esta misma prueba con el grupo de hacinamiento moderado y critico
 Hipótesis formal (Acceso financiero: Moderado vs Crítico)
-H0: p_Moderado <= p_Crítico
-H1: p_Moderado > p_Crítico
+H0: p_Moderado >= p_Crítico
+H1: p_Moderado < p_Crítico
 Tipo: prueba unilateral
 Justificación: la variable es binaria; comparamos dos proporciones independientes.
 
