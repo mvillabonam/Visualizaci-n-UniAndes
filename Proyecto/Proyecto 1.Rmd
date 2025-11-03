@@ -845,7 +845,180 @@ ggsave("stores/personas_por_hogar.png", personas_por_hogar, width = 8, height = 
 rm(personas_por_hogar,mapa_prom,prom_dpto,hogares,resumen_motivos)
 ```
 
-```{r E. RECORTAR BASE A NIVEL DE INTERÉS (BOGOTÁ) y CREAR VARIABLE HACINAMIENTO}
+```{r E. NECESIDADES A NIVEL DE HOGAR}
+vars_necesidades <- c("aap6a_aap6_empleo", "aap6a_aap6_alojamiento",
+  "aap6a_aap6_comida", "aap6a_aap6_semillas", "aap6a_aap6_asistencia_tec", "aap6a_aap6_agua_med",
+  "aap6a_aap6_articulos_hig", "aap6a_aap6_servicios_san",
+  "aap6a_aap6_articulos_hog", "aap6a_aap6_educ", "aap6a_aap6_transporte", "aap6a_aap6_atencion_med",
+  "aap6a_aap6_medicamentos", "aap6a_aap6_apoyo_psico", "aap6a_aap6_apoyo_psicolegal", "aap6a_aap6_deudas",
+  "aap6a_aap6_comunicacion", "aap6a_aap6_otro", "aap6a_aap6_ninguno", "aap6a_aap6_nosabe",
+  "aap6a_aap6_noresponde")
+
+# Resumen de valores perdidos (NA) para esas variables
+na_resumen_necesidades <- sapply(data_filtrada[vars_necesidades], function(x) sum(is.na(x)))
+na_resumen_necesidades  # No presenta valores nulos
+rm(na_resumen_necesidades)
+
+tabla_necesidades <- data_filtrada %>%
+  select(all_of(vars_necesidades)) %>%
+  pivot_longer(cols = everything(),
+               names_to = "variable",
+               values_to = "respuesta") %>%
+  group_by(variable) %>%
+  summarise(
+    conteo_1 = sum(respuesta == 1, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(proporcion = conteo_1 /  nrow(data_filtrada)) %>%
+  arrange(desc(proporcion)) %>%
+  mutate(
+    variable_label = recode(variable,
+      "aap6a_aap6_comida"        = "Comida",
+      "aap6a_aap6_empleo"        = "Empleo",
+      "aap6a_aap6_alojamiento"   = "Alojamiento",
+      "aap6a_aap6_atencion_med"  = "Atención médica",
+      "aap6a_aap6_medicamentos"  = "Medicamentos",
+      "aap6a_aap6_articulos_hog" = "Artículos del hogar",
+      "aap6a_aap6_educ"          = "Educación",
+      "aap6a_aap6_deudas"        = "Deudas",
+      "aap6a_aap6_agua_med"      = "Agua",
+      "aap6a_aap6_transporte"    = "Transporte",
+      "aap6a_aap6_articulos_hig" = "Artículos de higiene",
+      "aap6a_aap6_comunicacion"  = "Comunicación",
+      "aap6a_aap6_apoyo_psicolegal" = "Apoyo psico-legal",
+      "aap6a_aap6_apoyo_psico"   = "Apoyo psicológico",
+      "aap6a_aap6_semillas"      = "Semillas",
+      "aap6a_aap6_servicios_san" = "Servicios sanitarios",
+      "aap6a_aap6_otro"          = "Otro",
+      "aap6a_aap6_ninguno"       = "Ninguno",
+      "aap6a_aap6_nosabe"        = "No sabe",
+      "aap6a_aap6_noresponde"    = "No responde",
+      "aap6a_aap6_asistencia_tec"= "Asistencia técnica",
+      .default = variable
+    )
+  )
+
+ggplot(tabla_necesidades, aes(x = reorder(variable_label, proporcion),
+                              y = proporcion)) +
+  geom_col(fill = "steelblue") +
+  geom_text(aes(label = scales::percent(proporcion, accuracy = 0.1)),
+            hjust = -0.1, size = 3.5) +
+  coord_flip() +
+  labs(
+    title = "Necesidades reportadas por los hogares",
+    x = "Necesidad",
+    y = "Proporción de hogares"
+  ) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1),
+                     expand = expansion(mult = c(0, .1)))
+
+# --- NECESIDADES VS TIEMPO DE RESIDENCIA
+## Agrupamos las diferentes necesidades segun su tipo para facilitar el analisis
+tabla_necesidades_agrupada <- data_filtrada %>%
+  mutate(
+    # 1. Medios de vida y economía
+    grupo_medios = if_any(c(aap6a_aap6_empleo,
+                            aap6a_aap6_deudas,
+                            aap6a_aap6_semillas,
+                            aap6a_aap6_asistencia_tec), ~ .x == 1),
+    
+    # 2. Vivienda y servicios básicos
+    grupo_vivienda = if_any(c(aap6a_aap6_alojamiento,
+                              aap6a_aap6_agua_med,
+                              aap6a_aap6_servicios_san,
+                              aap6a_aap6_transporte,
+                              aap6a_aap6_comunicacion), ~ .x == 1),
+    
+    # 3. Alimentación y artículos básicos
+    grupo_alimentos = if_any(c(aap6a_aap6_comida,
+                               aap6a_aap6_articulos_hig,
+                               aap6a_aap6_articulos_hog), ~ .x == 1),
+    
+    # 4. Salud y bienestar
+    grupo_salud = if_any(c(aap6a_aap6_atencion_med,
+                           aap6a_aap6_medicamentos,
+                           aap6a_aap6_apoyo_psico), ~ .x == 1),
+    
+    # 5. Protección y educación
+    grupo_proteccion = if_any(c(aap6a_aap6_educ,
+                                aap6a_aap6_apoyo_psicolegal), ~ .x == 1),
+    
+    # 6. No clasificable
+    grupo_noclas = if_any(c(aap6a_aap6_otro,
+                            aap6a_aap6_ninguno,
+                            aap6a_aap6_nosabe,
+                            aap6a_aap6_noresponde), ~ .x == 1)
+  ) 
+
+## Resumen de tipo de necesidad
+resumen_necesidades <- tabla_necesidades_agrupada %>%
+  summarise(
+    `Medios de vida y economía`   = sum(grupo_medios, na.rm = TRUE),
+    `Vivienda y servicios básicos`= sum(grupo_vivienda, na.rm = TRUE),
+    `Alimentación y artículos básicos` = sum(grupo_alimentos, na.rm = TRUE),
+    `Salud y bienestar`           = sum(grupo_salud, na.rm = TRUE),
+    `Protección y educación`      = sum(grupo_proteccion, na.rm = TRUE),
+    `No clasificable`             = sum(grupo_noclas, na.rm = TRUE),
+    total_hogares                 = n()
+  ) %>%
+  pivot_longer(cols = -total_hogares,
+               names_to = "grupo",
+               values_to = "conteo") %>%
+  mutate(proporcion = conteo / total_hogares) %>%
+  arrange(desc(proporcion))
+
+resumen_necesidades
+
+
+# Generamos el cruce con el tiempo de residencia
+necesidades_long <- tabla_necesidades_agrupada %>%
+  select(meses_en_lugar,
+         grupo_medios,
+         grupo_vivienda,
+         grupo_alimentos,
+         grupo_salud,
+         grupo_proteccion,
+         grupo_noclas) %>%
+  pivot_longer(
+    cols = starts_with("grupo"),
+    names_to = "grupo",
+    values_to = "valor"
+  ) %>%
+  filter(valor == TRUE | valor == 1) %>%
+  group_by(meses_en_lugar, grupo) %>%
+  summarise(conteo = n(), .groups = "drop") %>%
+  mutate(
+    grupo = recode(grupo,
+      grupo_medios     = "Medios de vida y economía",
+      grupo_vivienda   = "Vivienda y servicios básicos",
+      grupo_alimentos  = "Alimentación y artículos básicos",
+      grupo_salud      = "Salud y bienestar",
+      grupo_proteccion = "Protección y educación",
+      grupo_noclas     = "No clasificable"
+    )
+  )
+
+necesidades_long
+
+
+# Gráfico de líneas
+ggplot(necesidades_long, aes(x = meses_en_lugar, y = conteo, color = grupo, group = grupo)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  labs(
+    title = "Evolución de las necesidades según tiempo de residencia",
+    x = "Tiempo de residencia (meses)",
+    y = "Número de hogares",
+    color = "Grupo de necesidad"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "bottom"
+  )
+```
+
+```{r F. RECORTAR BASE A NIVEL DE INTERÉS (BOGOTÁ) y CREAR VARIABLE HACINAMIENTO}
 # Filtrar Bogotá--------------------
 data_bogota <- data_migracion %>%
   filter(intro5 == "bogota. d.c.")
@@ -905,7 +1078,8 @@ ggsave("stores/Hacinamiento.png", hacinamiento, width = 7, height = 5, dpi = 300
 rm(hacinamiento, na_resumen, vars_unica,var_names, hacinamiento_resumen)
 ```
 
-```{r F. CORRELACIÓN VARIABLE HACINAMIENTO CON VARIABLES}
+## Análisis de Correlación Hacinamiento vs Ingresos, Productos Finacnieros y Gastos del Hogar.
+```{r G. CORRELACIÓN VARIABLE HACINAMIENTO CON VARIABLES}
 # INTENCIÓN DE MOVERSE Y HACINAMIENTO -------------------------------------------
 df_bubble <- data_filtrada %>%
   filter(demo22 != "no tienen la intencion de moverse") %>%
@@ -929,8 +1103,8 @@ ggsave("stores/hacinamiento_movilidad_bubble.png", p_bubble, width = 12, height 
 rm(df_bubble,p_bubble)
 ```
 
-```{r F. CORRELACIÓN VARIABLE HACINAMIENTO CON INGRESOS}
-# RELACIÓN HACINAMIENTO CON VARIABLES FINANCIERAS --------------------------- 
+```{r H. CORRELACIÓN VARIABLE HACINAMIENTO CON INGRESOS y ACCESO A PRODUCTOS FINANCIEROS}
+# RELACIÓN HACINAMIENTO CON VARIABLES DE INGRESO --------------------------- 
 vars_financieras <- c(
   # Fuentes de ingreso
   "mediosvida5_mediosvida5_prestamos","mediosvida5_mediosvida5_ahorros",
@@ -979,7 +1153,7 @@ make_plot_finanzas <- function(df, prefix, titulo, filename) {
   p
 }
 
-# --- Ejecuta para MV5 (fuentes de ingreso) y MV7 (productos financieros) ---
+# --- Aplicar función para MV5 (fuentes de ingreso) y MV7 (productos financieros) ---
 p_mv5 <- make_plot_finanzas(
   data_filtrada,
   "mediosvida5",
@@ -994,339 +1168,11 @@ p_mv7 <- make_plot_finanzas(
   "mv7_productos_financieros_porcentaje.png"
 )
 rm(make_plot_finanzas, p_mv5, p_mv7,na_financieras)
-
-# --- Medios de vida 5 ---
-resumen_mv5 <- data_filtrada %>%
-  group_by(hacinamiento) %>%
-  summarise(
-    across(starts_with("mediosvida5_mediosvida5"), ~sum(. == "1", na.rm = TRUE)),
-    .groups = "drop"
-  ) %>%
-  pivot_longer(
-    cols = -hacinamiento,
-    names_to = "producto",
-    values_to = "conteo"
-  ) %>%
-  left_join(totales_hogares, by = "hacinamiento") %>%
-  mutate(
-    porcentaje_hogares = round((conteo / total_hogares) * 100, 1),
-    producto = str_remove(producto, "mediosvida5_mediosvida5_")
-  )
-resumen_mv5
-
-# --- Gráfico Medios de Vida 5 (Ingresos) ---
-resumen_mv5 %>%
-  filter(!is.na(porcentaje_hogares), porcentaje_hogares > 0) %>%
-  ggplot(aes(x = producto, y = porcentaje_hogares, fill = hacinamiento)) +
-  geom_col(position = "dodge") +
-  labs(
-    title = "¿Actualmente en su hogar cuáles son las principales fuentes de ingresos/dinero?",
-    x = "Fuente de ingresos",
-    y = "% de hogares"
-  ) +
-  theme_minimal(base_size = 12) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1)
-  )
-
-# --- Medios de vida 7 ---
-resumen_mv7 <- data_filtrada %>%
-  group_by(hacinamiento) %>%
-  summarise(
-    across(starts_with("mediosvida7_mediosvida7"), ~sum(. == "1", na.rm = TRUE)),
-    .groups = "drop"
-  ) %>%
-  pivot_longer(
-    cols = -hacinamiento,
-    names_to = "producto",
-    values_to = "conteo"
-  ) %>%
-  left_join(totales_hogares, by = "hacinamiento") %>%
-  mutate(
-    porcentaje_hogares = round((conteo / total_hogares) * 100, 1),
-    producto = str_remove(producto, "mediosvida7_mediosvida7_")
-  )
-
-# --- Medios de vida 7 ---
-
-# --- Gráfico Medios de Vida 7 (Productos Financieros) ---
-resumen_mv7 %>%
-  filter(porcentaje_hogares > 0) %>%   # 🔹 Elimina categorías sin info
-  ggplot(aes(x = producto, y = porcentaje_hogares, fill = hacinamiento)) +
-  geom_col(position = "dodge") +
-  labs(
-    title = "¿Qué tipo de productos financieros tiene su hogar actualmente en Bogota?",
-    x = "Producto financiero",
-    y = "% de hogares"
-  ) +
-  theme_minimal(base_size = 12) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1)
-  )
 ```
-
 
 ## Segundo analisis a partir de dificultades a nivel hogar
 
-```{r Filtro necesidades}
-vars_necesidades <- c(
-  "aap6a_aap6_empleo",
-  "aap6a_aap6_alojamiento",
-  "aap6a_aap6_comida",
-  "aap6a_aap6_semillas",
-  "aap6a_aap6_asistencia_tec",
-  "aap6a_aap6_agua_med",
-  "aap6a_aap6_articulos_hig",
-  "aap6a_aap6_servicios_san",
-  "aap6a_aap6_articulos_hog",
-  "aap6a_aap6_educ",
-  "aap6a_aap6_transporte",
-  "aap6a_aap6_atencion_med",
-  "aap6a_aap6_medicamentos",
-  "aap6a_aap6_apoyo_psico",
-  "aap6a_aap6_apoyo_psicolegal",
-  "aap6a_aap6_deudas",
-  "aap6a_aap6_comunicacion",
-  "aap6a_aap6_otro",
-  "aap6a_aap6_ninguno",
-  "aap6a_aap6_nosabe",
-  "aap6a_aap6_noresponde"
-)
-
-# Resumen de valores perdidos (NA) para esas variables
-na_resumen_necesidades <- sapply(data_filtrada[vars_necesidades], function(x) sum(is.na(x)))
-na_resumen_necesidades  # No presenta valores nulos
-
-
-```
-```{r tabla estadisitca dificultades}
-
-tabla_necesidades <- data_filtrada %>%
-  select(all_of(vars_necesidades)) %>%
-  pivot_longer(cols = everything(),
-               names_to = "variable",
-               values_to = "respuesta") %>%
-  group_by(variable) %>%
-  summarise(
-    conteo_1 = sum(respuesta == 1, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  mutate(proporcion = conteo_1 /  nrow(data_filtrada)) %>%
-  arrange(desc(proporcion)) %>%
-  mutate(
-    variable_label = recode(variable,
-      "aap6a_aap6_comida"        = "Comida",
-      "aap6a_aap6_empleo"        = "Empleo",
-      "aap6a_aap6_alojamiento"   = "Alojamiento",
-      "aap6a_aap6_atencion_med"  = "Atención médica",
-      "aap6a_aap6_medicamentos"  = "Medicamentos",
-      "aap6a_aap6_articulos_hog" = "Artículos del hogar",
-      "aap6a_aap6_educ"          = "Educación",
-      "aap6a_aap6_deudas"        = "Deudas",
-      "aap6a_aap6_agua_med"      = "Agua",
-      "aap6a_aap6_transporte"    = "Transporte",
-      "aap6a_aap6_articulos_hig" = "Artículos de higiene",
-      "aap6a_aap6_comunicacion"  = "Comunicación",
-      "aap6a_aap6_apoyo_psicolegal" = "Apoyo psico-legal",
-      "aap6a_aap6_apoyo_psico"   = "Apoyo psicológico",
-      "aap6a_aap6_semillas"      = "Semillas",
-      "aap6a_aap6_servicios_san" = "Servicios sanitarios",
-      "aap6a_aap6_otro"          = "Otro",
-      "aap6a_aap6_ninguno"       = "Ninguno",
-      "aap6a_aap6_nosabe"        = "No sabe",
-      "aap6a_aap6_noresponde"    = "No responde",
-      "aap6a_aap6_asistencia_tec"= "Asistencia técnica",
-      .default = variable
-    )
-  )
-
-ggplot(tabla_necesidades, aes(x = reorder(variable_label, proporcion),
-                              y = proporcion)) +
-  geom_col(fill = "steelblue") +
-  geom_text(aes(label = scales::percent(proporcion, accuracy = 0.1)),
-            hjust = -0.1, size = 3.5) +
-  coord_flip() +
-  labs(
-    title = "Necesidades reportadas por los hogares",
-    x = "Necesidad",
-    y = "Proporción de hogares"
-  ) +
-  scale_y_continuous(labels = scales::percent_format(accuracy = 1),
-                     expand = expansion(mult = c(0, .1)))
-
-
-
-```
-```{r Cruce necesidades vs tiempo residencia}
-
-
-## Agrupamos las diferentes necesidades segun su tipo para facilitar el analisis
-tabla_necesidades_agrupada <- data_filtrada %>%
-  mutate(
-    # 1. Medios de vida y economía
-    grupo_medios = if_any(c(aap6a_aap6_empleo,
-                            aap6a_aap6_deudas,
-                            aap6a_aap6_semillas,
-                            aap6a_aap6_asistencia_tec), ~ .x == 1),
-    
-    # 2. Vivienda y servicios básicos
-    grupo_vivienda = if_any(c(aap6a_aap6_alojamiento,
-                              aap6a_aap6_agua_med,
-                              aap6a_aap6_servicios_san,
-                              aap6a_aap6_transporte,
-                              aap6a_aap6_comunicacion), ~ .x == 1),
-    
-    # 3. Alimentación y artículos básicos
-    grupo_alimentos = if_any(c(aap6a_aap6_comida,
-                               aap6a_aap6_articulos_hig,
-                               aap6a_aap6_articulos_hog), ~ .x == 1),
-    
-    # 4. Salud y bienestar
-    grupo_salud = if_any(c(aap6a_aap6_atencion_med,
-                           aap6a_aap6_medicamentos,
-                           aap6a_aap6_apoyo_psico), ~ .x == 1),
-    
-    # 5. Protección y educación
-    grupo_proteccion = if_any(c(aap6a_aap6_educ,
-                                aap6a_aap6_apoyo_psicolegal), ~ .x == 1),
-    
-    # 6. No clasificable
-    grupo_noclas = if_any(c(aap6a_aap6_otro,
-                            aap6a_aap6_ninguno,
-                            aap6a_aap6_nosabe,
-                            aap6a_aap6_noresponde), ~ .x == 1)
-  ) 
-
-## Resumen de tipo de necesidad
-resumen_necesidades <- tabla_necesidades_agrupada %>%
-  summarise(
-    `Medios de vida y economía`   = sum(grupo_medios, na.rm = TRUE),
-    `Vivienda y servicios básicos`= sum(grupo_vivienda, na.rm = TRUE),
-    `Alimentación y artículos básicos` = sum(grupo_alimentos, na.rm = TRUE),
-    `Salud y bienestar`           = sum(grupo_salud, na.rm = TRUE),
-    `Protección y educación`      = sum(grupo_proteccion, na.rm = TRUE),
-    `No clasificable`             = sum(grupo_noclas, na.rm = TRUE),
-    total_hogares                 = n()
-  ) %>%
-  pivot_longer(cols = -total_hogares,
-               names_to = "grupo",
-               values_to = "conteo") %>%
-  mutate(proporcion = conteo / total_hogares) %>%
-  arrange(desc(proporcion))
-
-resumen_necesidades
-
-
-
-# Generamos el cruce con el tiempo de residencia
-necesidades_long <- tabla_necesidades_agrupada %>%
-  select(meses_en_lugar,
-         grupo_medios,
-         grupo_vivienda,
-         grupo_alimentos,
-         grupo_salud,
-         grupo_proteccion,
-         grupo_noclas) %>%
-  pivot_longer(
-    cols = starts_with("grupo"),
-    names_to = "grupo",
-    values_to = "valor"
-  ) %>%
-  filter(valor == TRUE | valor == 1) %>%
-  group_by(meses_en_lugar, grupo) %>%
-  summarise(conteo = n(), .groups = "drop") %>%
-  mutate(
-    grupo = recode(grupo,
-      grupo_medios     = "Medios de vida y economía",
-      grupo_vivienda   = "Vivienda y servicios básicos",
-      grupo_alimentos  = "Alimentación y artículos básicos",
-      grupo_salud      = "Salud y bienestar",
-      grupo_proteccion = "Protección y educación",
-      grupo_noclas     = "No clasificable"
-    )
-  )
-
-necesidades_long
-
-
-# Gráfico de líneas
-ggplot(necesidades_long, aes(x = meses_en_lugar, y = conteo, color = grupo, group = grupo)) +
-  geom_line(size = 1) +
-  geom_point(size = 2) +
-  labs(
-    title = "Evolución de las necesidades según tiempo de residencia",
-    x = "Tiempo de residencia (meses)",
-    y = "Número de hogares",
-    color = "Grupo de necesidad"
-  ) +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "bottom"
-  )
-
-```
-
 ```{r Cruce necesidades vs hacinamiento}
-
-
-
-# Pasamos a formato largo: hogares x necesidades
-necesidades_hacinamiento <- tabla_necesidades_agrupada %>%
-  select(hacinamiento,
-         grupo_medios,
-         grupo_vivienda,
-         grupo_alimentos,
-         grupo_salud,
-         grupo_proteccion,
-         grupo_noclas) %>%
-  pivot_longer(
-    cols = starts_with("grupo"),
-    names_to = "grupo",
-    values_to = "valor"
-  ) %>%
-  filter(valor == TRUE | valor == 1) %>%
-  group_by(hacinamiento, grupo) %>%
-  summarise(conteo = n(), .groups = "drop") %>%
-  mutate(
-    grupo = recode(grupo,
-      grupo_medios     = "Medios de vida y economía",
-      grupo_vivienda   = "Vivienda y servicios básicos",
-      grupo_alimentos  = "Alimentación y artículos básicos",
-      grupo_salud      = "Salud y bienestar",
-      grupo_proteccion = "Protección y educación",
-      grupo_noclas     = "No clasificable"
-    )
-  )
-
-# Ordenar dentro de cada categoría de hacinamiento
-necesidades_hacinamiento <- necesidades_hacinamiento %>%
-  group_by(hacinamiento) %>%
-  arrange(desc(conteo), .by_group = TRUE)
-
-necesidades_hacinamiento
-
-
-ggplot(necesidades_hacinamiento, aes(x = grupo, y = conteo, fill = grupo)) +
-  geom_col(show.legend = FALSE) +
-  facet_wrap(~ hacinamiento, scales = "free_y") +
-  labs(
-    title = "Necesidades más frecuentes según tipo de hacinamiento",
-    x = "Grupo de necesidad",
-    y = "Número de hogares"
-  ) +
-  theme_minimal() +
-  theme(
-    strip.text = element_text(size = 11, face = "bold"),
-    axis.text.x = element_text(angle = 45, hjust = 1, size = 7), # más pequeño
-    axis.title.x = element_text(margin = margin(t = 10))
-  )
-
-```
-
-
-```{r Cruce necesidades vs hacinamiento}
-
 # Calcular totales por tipo de hacinamiento (para base de porcentajes)
 totales <- tabla_necesidades_agrupada %>%
   group_by(hacinamiento) %>%
@@ -1378,13 +1224,8 @@ ggplot(necesidades_hacinamiento, aes(x = grupo, y = pct, fill = hacinamiento)) +
   )
 
 ```
-
-
 ## Exploracion a nivel de las personas
-
-
 ```{r Corte de variables por medios de vida e Integración}
-
 vars_mediosvida <- c(
   "miembros21",  # Tiempo dedicado 
   "miembros22",  # Horas trabajadas
@@ -1410,12 +1251,9 @@ vars_mediosvida <- c(
 # Resumen de valores perdidos (NA) en estas variables
 na_resumen_mediosvida <- sapply(data_bogota[vars_mediosvida], function(x) sum(is.na(x)))
 na_resumen_mediosvida
-
-
-
 ```
-```{r Imputacion NAs}
 
+```{r Imputacion NAs}
 vars_24b <- c(
   "miembros24b_dificultades_nodocu",
   "miembros24b_dificultades_familia",
@@ -1447,15 +1285,9 @@ data_bogota <- data_bogota %>%
 # Resumen de valores perdidos (NA) en estas variables
 na_resumen_mediosvida <- sapply(data_bogota[vars_mediosvida], function(x) sum(is.na(x)))
 na_resumen_mediosvida
-
-
-
-
 ```
+
 ```{r Tablas estadisiticas por variable}
-
-
-
 vars_principales <- c(
   "miembros21",
   "miembros30",
@@ -1463,7 +1295,6 @@ vars_principales <- c(
   "miembros31a",
   "miembros21b"
 )
-
 
 tabla_cruzada_miembros21 <- data_bogota %>%
   count(miembros21, meses_en_lugar) %>%
@@ -1513,10 +1344,6 @@ tabla_cruzada_miembros21b <- data_bogota %>%
     values_fill = 0
   )
 tabla_cruzada_miembros21b
-
-
-
-
 ```
   
   
@@ -1571,10 +1398,7 @@ p2 <- ggplot(data_bogota %>%
   )
 
 grid.arrange(p1, p2, ncol = 2)
-
-
 ```
-
 
 ```{r NIVEL DE INGRESO A LO LARGO DEL TIEMPO}
 
@@ -1702,9 +1526,6 @@ ggplot(cruce_dificultades_long,
     legend.text  = element_text(size = 7)
   ) +
   guides(fill = guide_legend(nrow = 3, byrow = TRUE))
-
-
-
 ```
 
 
