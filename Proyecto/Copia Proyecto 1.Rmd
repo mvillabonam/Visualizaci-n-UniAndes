@@ -14,7 +14,7 @@ closeAllConnections()
 # --- Cargar librerías necesarias
 library("pacman")
 require("pacman")
-p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggplot2,openxlsx, writexl,stringi, patchwork, boot, skimr,tidyverse, readxl, ggthemes, plotly,sf,osmdata,dplyr, scales)
+p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggplot2,openxlsx, writexl,stringi, patchwork, skimr,tidyverse, readxl, ggthemes, plotly,sf,osmdata,dplyr, scales)
 
 # --- Definir rutas
 user <- Sys.getenv("USERNAME")
@@ -102,7 +102,10 @@ data_migracion_sf <- data_migracion %>%
 # PARTE I: EDA Y VISUALIZACIÓN AJUSTADA
 ## Exploración y creación de variables latentes
 ```{r A. ELIGIBILIDAD }
-# PERSONAS POR DEPARTAMENTO ---------------------------------------
+##############################################
+# PERSONAS POR DEPARTAMENTO 
+##############################################
+# 4) Agregar y mapear
 agg_migracion <- data_migracion %>%
   count(nombre_dpt, name = "n_personas")
 
@@ -132,7 +135,10 @@ ggsave("stores/mapa_personas.png", mapa_personas, width = 7, height = 5, dpi = 3
 rm(mapa_sf,col_mpios,agg_migracion,mapa_sf,mapa_personas,std_name)
 
 
-# EDAD Y SEXO -------------------
+##############################################
+# EDAD Y SEXO 
+##############################################
+
 # Histograma Sexo
 data_migracion$sexo_desagregado <- ifelse(data_migracion$demo2 == "Otro",
                                     "Otros",
@@ -186,7 +192,9 @@ data_migracion$rangos_edades <- cut(
 )
 rm(dens_bins,breaks)
 
-# JEFES DE HOGAR --------------------------------------
+##############################################
+# JEFES DE HOGAR 
+##############################################
 data_migracion %>%
   count(demo3) # Hay 8603 personas que reportan ser jefes de hogar
 
@@ -244,7 +252,29 @@ data_migracion <- data_migracion %>%
   ) %>%
   ungroup()
 
-# INTENCIÓN DE MOVERSE---------------------------------------------
+##############################################
+# INTENCIÓN DE MOVERSE
+##############################################
+var_names  <- c("demo21_ing_red","demo21_suf_disc","demo21_aum_prec",
+  "demo21_desal_viv","demo21_no_alim","demo21_no_acces_sal",
+  "demo21_of_lab","demo21_acc_edu","demo21_acc_edu_nna","demo21_otro_inten")
+lapply(var_names, function(v) table(data_migracion[[v]], useNA = "ifany"))
+
+# ¿Tienen sentidos los NA?
+df_no_move <- data_migracion %>%
+  filter(demo18 == "no tienen la intencion de moverse") # Filtrar solo quienes NO tienen intención de moverse
+
+# Contar NAs para cada variable entre ese grupo
+result_na <-  df_no_move %>%
+  summarise(across(all_of(var_names ), ~ sum(is.na(.)))) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "na_count") %>%
+  mutate(total_cases = nrow(df_no_move),
+         na_percent = round(100 * na_count / total_cases, 2))
+result_na
+rm(vars, result_na)
+
+# Contar razón por la cual quiere moverse por caso.
+unique(data_migracion$demo21_ing_red)
 intencion_moverse <- data_migracion %>%
   pivot_longer(
     cols = c(demo21_ing_red,
@@ -263,6 +293,7 @@ intencion_moverse <- data_migracion %>%
   group_by(intro5, variable) %>%
   summarise(n_1 = sum(valor == 1, na.rm = TRUE), .groups = "drop") %>%
   arrange(intro5, variable)
+intencion_moverse
 rm(intencion_moverse)
 
 # Moverse por Falta de ingresos
@@ -274,7 +305,7 @@ data_migracion <- data_migracion %>%
       na.rm = TRUE
     ))
   ) %>% ungroup()
-
+                                      
 # Moverse por carencias de servicios (incluye educación y alimentación)
 data_migracion <- data_migracion %>%
   group_by(id_hogar) %>%
@@ -344,7 +375,50 @@ migrar_por <- ggplot(df_plot, aes(x = casos, y = nombre_dpt, fill = motivo)) +
 ggsave("stores/motivo_migrar_nuevamente.png", migrar_por, width = 8, height = 6, dpi = 300)
 rm (df_plot, migrar_por)
 
-# AÑOS ------------------------------------------------
+# Gráfico Carencias Desagregadas
+# Pie: Carencia de Ingreso 
+df_ingresos <- data_migracion %>%
+  summarise(
+    ingresos_reducidos = sum(demo21_ing_red == 1, na.rm = TRUE),
+    aumento_precios    = sum(demo21_aum_prec == 1, na.rm = TRUE),
+    oferta_laboral     = sum(demo21_of_lab == 1, na.rm = TRUE)
+  ) %>%
+  pivot_longer(everything(), names_to = "motivo", values_to = "n")
+
+p_ingresos <- ggplot(df_ingresos, aes(x = "", y = n, fill = motivo)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y") +
+  theme_void() +
+  geom_text(aes(label = paste0(round(n/sum(n)*100,1), "%")),
+            position = position_stack(vjust = 0.5), size = 3.8) +
+  labs(subtitle = "Carencia de Ingreso", fill = NULL)
+
+# Pie: Carencia de Servicios
+df_servicios <- data_migracion %>%
+  summarise(
+    no_alimentacion = sum(demo21_no_alim == 1, na.rm = TRUE),
+    no_salud        = sum(demo21_no_acces_sal == 1, na.rm = TRUE),
+    acc_educacion   = sum(demo21_acc_edu == 1, na.rm = TRUE),
+    acc_edu_nna     = sum(demo21_acc_edu_nna == 1, na.rm = TRUE)
+  ) %>%
+  pivot_longer(everything(), names_to = "motivo", values_to = "n")
+
+p_servicios <- ggplot(df_servicios, aes(x = "", y = n, fill = motivo)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y") +
+  theme_void() +
+  geom_text(aes(label = paste0(round(n/sum(n)*100,1), "%")),
+            position = position_stack(vjust = 0.5), size = 3.8) +
+  labs(subtitle = "Carencia de Servicios", fill = NULL)
+
+final_plot <- p_ingresos + p_servicios +
+  plot_annotation(title = "Motivo de querer migrar de lugar de residencia actual")
+ggsave("stores/Carencias_desagregadas.png", final_plot, width = 10, height = 6, dpi = 300)
+rm(final_plot, p_servicios, df_servicios, p_ingresos, df_ingresos)
+
+##############################################
+# AÑOS
+##############################################
 data_migracion <- data_migracion %>%
   mutate(
     fecha_demo8 = ymd(demo8),   # convertir string a fecha
@@ -354,7 +428,9 @@ data_migracion <- data_migracion %>%
 ```
 
 ```{r B. INTENSIONES Y MOVIMIENTOS }
-# MIGRAR EN PRÓXIMOS 6 MESES ----------------------------------------------
+#########################################
+# MIGRAR EN PRÓXIMOS 6 MESES
+#########################################
 data_migracion <- data_migracion %>%
   mutate(
     `6M_sinmov`      = ifelse(demo22 == "no tienen la intencion de moverse", 1, 0), 
@@ -365,7 +441,9 @@ data_migracion <- data_migracion %>%
     `6M_MismoDpto`   = ifelse(demo22 == "si, nos vamos a cambiar de municipio pero en el mismo departamento actual", 1, 0)
   )
 
-# HACE CUÁNTO TIEMPO RESIDE EN EL HOGAR ---------------------------------------
+#########################################
+# HACE CUÁNTO TIEMPO RESIDE EN EL HOGAR
+#########################################
 data_migracion <- data_migracion %>%
   mutate(
     meses_en_lugar = case_when(
@@ -386,7 +464,28 @@ data_migracion <- data_migracion %>%
     )
   )
 
-# RAZÓN POR LA QUE MIGRÓ A RESIDENCIA ACTUAL----------------------------------
+# Gráfico
+df_meses <- data_migracion %>%
+  count(meses_en_lugar) %>%
+  mutate(porc = round(100 * n / sum(n), 1))
+g_meses <- ggplot(df_meses, aes(x = meses_en_lugar, y = porc)) +
+  geom_col(fill = "#4A90E2") +
+  geom_text(aes(label = paste0(porc, "%")), vjust = -0.4, size = 3.8) +
+  labs(
+    title = "Tiempo de permanencia en el lugar de residencia actual",
+    x = "Meses en el lugar",
+    y = "Porcentaje de hogares"
+  ) +
+  theme_minimal(base_size = 12)
+# Guardar
+ggsave("stores/tiempo_permanencia_residencia.png", g_meses,
+       width = 8, height = 5, dpi = 300)
+rm(g_meses, df_meses)
+
+
+#########################################
+# RAZÓN POR LA QUE MIGRÓ A RESIDENCIA ACTUAL 
+#########################################
 data_migracion <- data_migracion %>%
   mutate(
     Migro_por_violencia = ifelse(demo17 %in% c(
@@ -474,8 +573,10 @@ ggsave("stores/motivo_migracion.png", migro_por, width = 8, height = 6, dpi = 30
 rm (df_plot_mig, migro_por)
 ```
 
-```{r C. AGUA, SANEAMIENTO E HIGIENE (WASH)}
-# ACCESO A AGUA-----------------------------
+```{r c. AGUA, SANEAMIENTO E HIGIENE (WASH)}
+#########################################
+# ACCESO A AGUA
+#########################################
 data_migracion <- data_migracion %>%
   group_by(id_hogar) %>%
   mutate(
@@ -500,7 +601,9 @@ data_migracion <- data_migracion %>%
   ) %>%
   ungroup()
 
-# AGUA EN VIVIENDA---------------------
+#########################################
+# AGUA EN VIVIENDA
+#########################################
 data_migracion <- data_migracion %>%
   group_by(id_hogar) %>%
   mutate(
@@ -510,7 +613,9 @@ data_migracion <- data_migracion %>%
   ) %>%
   ungroup()
 
-# TIEMPO PARA AGUA --------------------------------------
+#########################################
+# TIEMPO PARA AGUA 
+#########################################
 data_migracion <- data_migracion %>%
   group_by(id_hogar) %>%
   mutate(
@@ -519,7 +624,9 @@ data_migracion <- data_migracion %>%
   ) %>%
   ungroup()
 
-# SATISFACCIÓN NECESIDADES BÁSICAS AGUA-----------------
+#########################################
+# SATISFACCIÓN NECESIDADES BÁSICAS AGUA
+#########################################
 data_migracion <- data_migracion %>%
   mutate(
     Agua_Satisfaccion = case_when(
@@ -529,7 +636,9 @@ data_migracion <- data_migracion %>%
     )
   )
 
-# TIEMPO DE COBERTURA DEL SERVICIO ----------------------------
+#########################################
+# TIEMPO DE COBERTURA DEL SERVICIO 
+#########################################
 data_migracion <- data_migracion %>%
   mutate(
     Agua_CoberturaTotal = ifelse(
@@ -546,7 +655,9 @@ data_migracion <- data_migracion %>%
     )
   )
 
-# INFORMACIÓN SANEAMIENTO ---------------------------------------
+#########################################
+# INFORMACIÓN SANEAMIENTO 
+#########################################
 data_migracion <- data_migracion %>%
   group_by(id_hogar) %>%
   mutate(
@@ -601,7 +712,10 @@ data_migracion <- data_migracion %>%
   ) %>%
   ungroup()
 
-# SERVICIO DE BASURA-----------------------------------------
+
+#########################################
+# SERVICIO DE BASURA
+#########################################
 data_migracion <- data_migracion %>%
   group_by(id_hogar) %>%
   mutate(
@@ -623,7 +737,9 @@ data_migracion <- data_migracion %>%
     ))) %>%
   ungroup()
 
-# AMBIENTE CONTAMINADO-------------------------------------------
+#########################################
+# AMBIENTE CONTAMINADO
+#########################################
 data_migracion <- data_migracion %>%
   group_by(id_hogar) %>%
   mutate(
@@ -637,7 +753,9 @@ data_migracion <- data_migracion %>%
   ) %>%
   ungroup()
 
-# PROBLEMAS PARA ACCEDER A ARTÍCULOS DE HIGIENE ---------------------
+#########################################
+# PROBLEMAS PARA ACCEDER A ARTÍCULOS DE HIGIENE 
+#########################################
 data_migracion <- data_migracion %>%
   mutate(
     wash20 = factor(
@@ -666,7 +784,6 @@ resumen_intencion_6M <- data_migracion %>%
   )
 resumen_intencion_6M
 
-
 # Tiempo de residencia en lugar en que se encuentra actualmente
 resumen_meses_lugar <- data_migracion %>%
   group_by(nombre_dpt, meses_en_lugar) %>%
@@ -680,7 +797,7 @@ resumen_meses_lugar
 
 # Motivo por el que migró a residencia actual 
 resumen_motivos <- data_migracion %>%
-  group_by(nombre_dpt) %>%
+  group_by(intro5) %>%
   summarise(
     violencia      = sum(Migro_por_violencia, na.rm = TRUE),
     familia        = sum(Migro_por_familia, na.rm = TRUE),
@@ -691,6 +808,8 @@ resumen_motivos <- data_migracion %>%
     alimentos      = sum(Migro_por_alimentos, na.rm = TRUE),
     .groups = "drop"
   )
+resumen_motivos
+
 # ACCESO A AGUA
 resumen_agua <- data_migracion %>%
   distinct(id_hogar, nombre_dpt, Acueducto_casa, AguaPublica_fueradecasa,
@@ -712,34 +831,18 @@ resumen_agua <- data_migracion %>%
     pct_AguaPrivada = round(100 * hogares_con_AguaPrivada / total_hogares, 1),
     pct_NoAcceso = round(100 * hogares_sin_Agua / total_hogares, 1)
   )
-
-df_agua <- resumen_agua %>%
-  select(nombre_dpt, total_hogares,
-         hogares_con_Acueducto, hogares_con_AguaPublica_fuera,
-         hogares_con_AguaNatural, hogares_con_AguaPrivada, hogares_sin_Agua) %>%
-  pivot_longer(-c(nombre_dpt, total_hogares),
-               names_to = "categoria", values_to = "n") %>%
-  mutate(
-    categoria = recode(categoria,
-      hogares_con_Acueducto        = "Acueducto",
-      hogares_con_AguaPublica_fuera = "Agua pública (fuera)",
-      hogares_con_AguaNatural      = "Agua natural",
-      hogares_con_AguaPrivada      = "Agua privada",
-      hogares_sin_Agua             = "Sin acceso"
-    ),
-    nombre_dpt = fct_reorder(nombre_dpt, total_hogares)
-  )
+resumen_agua
 
 g_agua <- ggplot(df_agua, aes(x = nombre_dpt, y = n, fill = categoria)) +
   geom_col() +
   coord_flip() +
   labs(title = "Acceso a agua por departamento",
-       subtitle = "Total de hogares por categoría",
+       subtitle = "Suma de hogares por categoría",
        x = NULL, y = "Hogares", fill = NULL) +
   theme_minimal()
-ggsave("stores/acceso_agua.png", g_agua, width = 10, height = 7, dpi = 300)
-rm(g_agua, df_agua, resumen_agua,df_no_move,resumen_intencion_6M, 
-   resumen_meses_lugar,resumen_momtivos)
+
+ggsave("strores/acceso_agua_stack.png", g_agua, width = 10, height = 7, dpi = 300)
+
 
 # CAMINAR PARA ACCEDER A AGUA (CORTO < 30 MIN, LARGO > 30 MIN)
 resumen_caminar <- data_migracion %>%
@@ -757,7 +860,7 @@ resumen_caminar <- data_migracion %>%
   ) %>%
   arrange(desc(total_hogares))
 resumen_caminar
-rm(resumen_caminar)
+
 
 # ACCESO A SANEAMIENTO
 resumen_saneamiento <- data_migracion %>%
@@ -786,35 +889,9 @@ resumen_saneamiento <- data_migracion %>%
   ) %>%
   arrange(desc(total_hogares))
 resumen_saneamiento
+rm(resumen_saneamiento,resumen_caminar,resumen_agua)
 
-df_sanea <- resumen_saneamiento %>%
-  pivot_longer(
-    c(hogares_deCalidad, hogares_noCalidad, hogares_Letrina,
-      hogares_Privado, hogares_UsoPublico, hogares_SinCobertura),
-    names_to = "categoria", values_to = "n"
-  ) %>%
-  mutate(
-    categoria = recode(categoria,
-      hogares_deCalidad    = "De calidad",
-      hogares_noCalidad    = "Sin calidad",
-      hogares_Letrina      = "Letrina",
-      hogares_Privado      = "Privado",
-      hogares_UsoPublico   = "Público",
-      hogares_SinCobertura = "Sin cobertura"
-    )
-  )
-
-g_sanea <- ggplot(df_sanea, aes(x = nombre_dpt, y = n, fill = categoria)) +
-  geom_col() +
-  coord_flip() +
-  labs(title = "Acceso a saneamiento por departamento",
-       subtitle = "Suma de hogares por categoría",
-       x = "", y = "Hogares") +
-  theme_minimal()
-ggsave("stores/03_saneamiento_stack.png", g_sanea, width = 10, height = 6)
-rm(resumen_saneamiento, df_sanea, g_sanea)
-
-# Número de miembros en promedio por hogar
+# PERSONAS EN PROMEDIO POR HOGAR
 hogares <- data_migracion_sf %>%
   st_drop_geometry() %>%
   group_by(id_hogar, nombre_dpt) %>%
@@ -842,23 +919,308 @@ personas_por_hogar <- ggplot(mapa_prom) +
     legend.position = "right"
   )
 ggsave("stores/personas_por_hogar.png", personas_por_hogar, width = 8, height = 6, dpi = 300)
-rm(personas_por_hogar,mapa_prom,prom_dpto,hogares,resumen_motivos)
+rm(personas_por_hogar,mapa_prom,prom_dpto,hogares)
 ```
 
-```{r E. NECESIDADES A NIVEL DE HOGAR}
-vars_necesidades <- c("aap6a_aap6_empleo", "aap6a_aap6_alojamiento",
-  "aap6a_aap6_comida", "aap6a_aap6_semillas", "aap6a_aap6_asistencia_tec", "aap6a_aap6_agua_med",
-  "aap6a_aap6_articulos_hig", "aap6a_aap6_servicios_san",
-  "aap6a_aap6_articulos_hog", "aap6a_aap6_educ", "aap6a_aap6_transporte", "aap6a_aap6_atencion_med",
-  "aap6a_aap6_medicamentos", "aap6a_aap6_apoyo_psico", "aap6a_aap6_apoyo_psicolegal", "aap6a_aap6_deudas",
-  "aap6a_aap6_comunicacion", "aap6a_aap6_otro", "aap6a_aap6_ninguno", "aap6a_aap6_nosabe",
-  "aap6a_aap6_noresponde")
+
+## Cortar base a nivel de observación de interés
+
+```{r Filtro ciudad y creacion variable hacinamiento}
+# --- Filtrar Bogotá
+data_bogota <- data_migracion %>%
+  filter(intro5 == "bogota. d.c.")
+
+# --- Quedarse con un registro por hogar, prefiriendo demo3 == "si"
+data_filtrada <- data_bogota %>%
+  group_by(id_hogar) %>%
+  arrange(desc(demo3 == "si")) %>%  # ordena poniendo primero los que tienen demo3 == "si"
+  slice(1) %>%                      # toma el primer registro de cada hogar
+  ungroup()
+
+# --- Calcular índice de hacinamiento
+data_filtrada <- data_filtrada %>%
+  mutate(
+    personas_cuarto = miembros1 / alojamiento7,
+    hacinamiento = case_when(
+      is.na(personas_cuarto) ~ NA_character_,
+      personas_cuarto <= 2 ~ "Sin hacinamiento",
+      personas_cuarto > 2 & personas_cuarto <= 3 ~ "Moderado",
+      personas_cuarto > 3 ~ "Crítico"
+    )
+  )
+```
+
+```{r Filtro Jefe de hogar}
+# Variables únicas (riesgo desalojo, intención moverse, tiempo residencia)
+vars_unica <- c("miembros1", "alojamiento7")
+```
+
+```{r NA}
+# --- NA en variables únicas
+na_resumen <- sapply(data_filtrada[vars_unica], function(x) sum(is.na(x)))
+na_resumen
+```
+```{r distribucion hacinamiento}
+table(data_filtrada$hacinamiento, useNA = "ifany")
+```
+```{r distribucion hacinamiento}
+# Orden lógico de categorías
+data_filtrada$hacinamiento <- factor(
+  data_filtrada$hacinamiento,
+  levels = c("Sin hacinamiento", "Moderado", "Crítico")
+)
+
+# Gráfico de barras
+ggplot(data_filtrada, aes(x = hacinamiento, fill = hacinamiento)) +
+  geom_bar() +
+  theme_minimal() +
+  labs(
+    title = "Distribución del hacinamiento en Bogotá",
+    x = "Categoría de hacinamiento",
+    y = "Número de hogares"
+  ) +
+  theme(legend.position = "none")
+```
+```{r distribucion hacinamiento}
+hacinamiento_resumen <- data_filtrada %>%
+  group_by(hacinamiento) %>%
+  summarise(Frecuencia = n()) %>%
+  mutate(Proporcion = round(100 * Frecuencia / sum(Frecuencia), 1))
+
+hacinamiento_resumen
+```
+
+```{r comparacion variables de interes}
+table(data_filtrada$hacinamiento, data_filtrada$demo22, useNA = "ifany")
+```
+
+```{r comparacion variables de medios de vida}
+vars_financieras <- c(
+  # Fuentes de ingreso
+  "mediosvida5_mediosvida5_prestamos",
+  "mediosvida5_mediosvida5_ahorros",
+  "mediosvida5_mediosvida5_trabajo",
+  "mediosvida5_mediosvida5_asistencia",
+  "mediosvida5_mediosvida5_apoyocomunidad",
+  "mediosvida5_mediosvida5_venderbienes",
+  "mediosvida5_mediosvida5_donaciones",
+  "mediosvida5_mediosvida5_notiene",  
+  "mediosvida5_mediosvida5_otra",   
+  
+  # Productos financieros
+  "mediosvida7_mediosvida7_cuenta_ahorro",
+  "mediosvida7_mediosvida7_cuenta_corriente",
+  "mediosvida7_mediosvida7_billetera_electronica",
+  "mediosvida7_mediosvida7_deposito_bajo_monto",
+  "mediosvida7_mediosvida7_microcredito",
+  "mediosvida7_mediosvida7_prestamo_vivienda",
+  "mediosvida7_mediosvida7_prestamo_de_libre_inversion",
+  "mediosvida7_mediosvida7_tarjeta_de_credito",
+  "mediosvida7_mediosvida7_otro",  
+  "mediosvida7_mediosvida7_ninguno", 
+  "mediosvida7_mediosvida7_no_sabe", 
+  "mediosvida7_mediosvida7_noresponde"
+
+)
+```
+
+```{r comparacion variables de medios de vida}
+resumen_financieros <- data_filtrada %>%
+  group_by(hacinamiento) %>%
+  summarise(across(all_of(vars_financieras), ~ sum(. == "1", na.rm = TRUE))) 
+
+resumen_financieros
+```
+
+```{r Comparacion variables de medios de vida}
+resumen_finanzas_largo <- resumen_financieros %>%
+  pivot_longer(
+    cols = -hacinamiento,
+    names_to = "producto",
+    values_to = "conteo"
+  )
+
+resumen_finanzas_largo <- resumen_finanzas_largo %>%
+  mutate(producto = str_replace_all(producto,
+                                    c("mediosvida5_" = "",
+                                      "mediosvida7_" = "")))
+head(resumen_finanzas_largo, 10)
+```
+
+```{r comparacion variables de medios de vida}
+# --- Para MEDIOS DE VIDA 5 (fuentes de ingresos/dinero)
+resumen_mv5 <- resumen_financieros %>%
+  select(hacinamiento, starts_with("mediosvida5")) %>% 
+  pivot_longer(
+    cols = -hacinamiento,
+    names_to = "producto",
+    values_to = "conteo"
+  ) %>%
+  group_by(hacinamiento) %>%
+  mutate(
+    total = sum(conteo, na.rm = TRUE),
+    porcentaje = round((conteo / total) * 100, 1),
+    producto = gsub("mediosvida5_mediosvida5_", "", producto)  # limpiar nombres
+  )
+
+# --- Para MEDIOS DE VIDA 7 (productos financieros)
+resumen_mv7 <- resumen_financieros %>%
+  select(hacinamiento, starts_with("mediosvida7")) %>% 
+  pivot_longer(
+    cols = -hacinamiento,
+    names_to = "producto",
+    values_to = "conteo"
+  ) %>%
+  group_by(hacinamiento) %>%
+  mutate(
+    total = sum(conteo, na.rm = TRUE),
+    porcentaje = round((conteo / total) * 100, 1),
+    producto = gsub("mediosvida7_mediosvida7_", "", producto)  # limpiar nombres
+  )
+```
+
+```{r comparacion variables de medios de vida}
+# --- Gráfico 1: Fuentes de ingresos (MV5)
+ggplot(resumen_mv5, aes(x = hacinamiento, y = porcentaje, fill = producto)) +
+  geom_col(position = "stack") +
+  labs(
+    title = "¿Actualmente en su hogar cuáles son las principales fuentes de ingresos/dinero?",
+    x = "Nivel de hacinamiento",
+    y = "Porcentaje"
+  ) +
+  theme_minimal()
+```
+```{r comparacion variables de medios de vida}
+# --- Gráfico 2: Productos financieros (MV7)
+ggplot(resumen_mv7, aes(x = hacinamiento, y = porcentaje, fill = producto)) +
+  geom_col(position = "stack") +
+  labs(
+    title = "¿Qué tipo de productos financieros tiene su hogar actualmente en Colombia?",
+    x = "Nivel de hacinamiento",
+    y = "Porcentaje"
+  ) +
+  theme_minimal()
+```
+
+```{r comparacion variables de medios de vida}
+# Total de hogares por categoría de hacinamiento
+totales_hogares <- data_filtrada %>%
+  group_by(hacinamiento) %>%
+  summarise(total_hogares = n(), .groups = "drop")
+```
+
+```{r comparacion variables de medios de vida}
+# --- Medios de vida 5 ---
+resumen_mv5 <- data_filtrada %>%
+  group_by(hacinamiento) %>%
+  summarise(
+    across(starts_with("mediosvida5_mediosvida5"), ~sum(. == "1", na.rm = TRUE)),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = -hacinamiento,
+    names_to = "producto",
+    values_to = "conteo"
+  ) %>%
+  left_join(totales_hogares, by = "hacinamiento") %>%
+  mutate(
+    porcentaje_hogares = round((conteo / total_hogares) * 100, 1),
+    producto = str_remove(producto, "mediosvida5_mediosvida5_")
+  )
+
+```
+
+```{r comparacion variables de medios de vida}
+# --- Gráfico Medios de Vida 5 (Ingresos) ---
+resumen_mv5 %>%
+  filter(!is.na(porcentaje_hogares), porcentaje_hogares > 0) %>%
+  ggplot(aes(x = producto, y = porcentaje_hogares, fill = hacinamiento)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "¿Actualmente en su hogar cuáles son las principales fuentes de ingresos/dinero?",
+    x = "Fuente de ingresos",
+    y = "% de hogares"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+```{r comparacion variables de medios de vida}
+# --- Medios de vida 7 ---
+resumen_mv7 <- data_filtrada %>%
+  group_by(hacinamiento) %>%
+  summarise(
+    across(starts_with("mediosvida7_mediosvida7"), ~sum(. == "1", na.rm = TRUE)),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = -hacinamiento,
+    names_to = "producto",
+    values_to = "conteo"
+  ) %>%
+  left_join(totales_hogares, by = "hacinamiento") %>%
+  mutate(
+    porcentaje_hogares = round((conteo / total_hogares) * 100, 1),
+    producto = str_remove(producto, "mediosvida7_mediosvida7_")
+  )
+```
+
+```{r comparacion variables de medios de vida}
+# --- Medios de vida 7 ---
+
+# --- Gráfico Medios de Vida 7 (Productos Financieros) ---
+resumen_mv7 %>%
+  filter(porcentaje_hogares > 0) %>%   # 🔹 Elimina categorías sin info
+  ggplot(aes(x = producto, y = porcentaje_hogares, fill = hacinamiento)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "¿Qué tipo de productos financieros tiene su hogar actualmente en Bogota?",
+    x = "Producto financiero",
+    y = "% de hogares"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+## Segundo analisis a partir de dificultades a nivel hogar
+
+```{r Filtro necesidades}
+vars_necesidades <- c(
+  "aap6a_aap6_empleo",
+  "aap6a_aap6_alojamiento",
+  "aap6a_aap6_comida",
+  "aap6a_aap6_semillas",
+  "aap6a_aap6_asistencia_tec",
+  "aap6a_aap6_agua_med",
+  "aap6a_aap6_articulos_hig",
+  "aap6a_aap6_servicios_san",
+  "aap6a_aap6_articulos_hog",
+  "aap6a_aap6_educ",
+  "aap6a_aap6_transporte",
+  "aap6a_aap6_atencion_med",
+  "aap6a_aap6_medicamentos",
+  "aap6a_aap6_apoyo_psico",
+  "aap6a_aap6_apoyo_psicolegal",
+  "aap6a_aap6_deudas",
+  "aap6a_aap6_comunicacion",
+  "aap6a_aap6_otro",
+  "aap6a_aap6_ninguno",
+  "aap6a_aap6_nosabe",
+  "aap6a_aap6_noresponde"
+)
 
 # Resumen de valores perdidos (NA) para esas variables
 na_resumen_necesidades <- sapply(data_filtrada[vars_necesidades], function(x) sum(is.na(x)))
 na_resumen_necesidades  # No presenta valores nulos
-rm(na_resumen_necesidades)
 
+
+```
+
+```{r Tabla estadisitca dificultades}
 tabla_necesidades <- data_filtrada %>%
   select(all_of(vars_necesidades)) %>%
   pivot_longer(cols = everything(),
@@ -912,7 +1274,10 @@ ggplot(tabla_necesidades, aes(x = reorder(variable_label, proporcion),
   scale_y_continuous(labels = scales::percent_format(accuracy = 1),
                      expand = expansion(mult = c(0, .1)))
 
-# --- NECESIDADES VS TIEMPO DE RESIDENCIA
+
+
+```
+```{r Cruce necesidades vs tiempo residencia}
 ## Agrupamos las diferentes necesidades segun su tipo para facilitar el analisis
 tabla_necesidades_agrupada <- data_filtrada %>%
   mutate(
@@ -969,7 +1334,6 @@ resumen_necesidades <- tabla_necesidades_agrupada %>%
 
 resumen_necesidades
 
-
 # Generamos el cruce con el tiempo de residencia
 necesidades_long <- tabla_necesidades_agrupada %>%
   select(meses_en_lugar,
@@ -1016,161 +1380,64 @@ ggplot(necesidades_long, aes(x = meses_en_lugar, y = conteo, color = grupo, grou
     axis.text.x = element_text(angle = 45, hjust = 1),
     legend.position = "bottom"
   )
+
 ```
 
-```{r F. RECORTAR BASE A NIVEL DE INTERÉS (BOGOTÁ) y CREAR VARIABLE HACINAMIENTO}
-# Filtrar Bogotá--------------------
-data_bogota <- data_migracion %>%
-  filter(intro5 == "bogota. d.c.")
+```{r Cruce necesidades vs hacinamiento}
 
-# --- Quedarse con un registro por hogar, prefiriendo demo3 == "si"
-data_filtrada <- data_bogota %>%
-  group_by(id_hogar) %>%
-  arrange(desc(demo3 == "si")) %>%  # ordena poniendo primero los que tienen demo3 == "si"
-  slice(1) %>%                      # toma el primer registro de cada hogar
-  ungroup()
-
-# Calcular índice de hacinamiento ---------------------------
-data_filtrada <- data_filtrada %>%
+# Pasamos a formato largo: hogares x necesidades
+necesidades_hacinamiento <- tabla_necesidades_agrupada %>%
+  select(hacinamiento,
+         grupo_medios,
+         grupo_vivienda,
+         grupo_alimentos,
+         grupo_salud,
+         grupo_proteccion,
+         grupo_noclas) %>%
+  pivot_longer(
+    cols = starts_with("grupo"),
+    names_to = "grupo",
+    values_to = "valor"
+  ) %>%
+  filter(valor == TRUE | valor == 1) %>%
+  group_by(hacinamiento, grupo) %>%
+  summarise(conteo = n(), .groups = "drop") %>%
   mutate(
-    personas_cuarto = miembros1 / alojamiento7,
-    hacinamiento = case_when(
-      is.na(personas_cuarto) ~ NA_character_,
-      personas_cuarto <= 2 ~ "Sin hacinamiento",
-      personas_cuarto > 2 & personas_cuarto <= 3 ~ "Moderado",
-      personas_cuarto > 3 ~ "Crítico"
+    grupo = recode(grupo,
+      grupo_medios     = "Medios de vida y economía",
+      grupo_vivienda   = "Vivienda y servicios básicos",
+      grupo_alimentos  = "Alimentación y artículos básicos",
+      grupo_salud      = "Salud y bienestar",
+      grupo_proteccion = "Protección y educación",
+      grupo_noclas     = "No clasificable"
     )
   )
 
-# Revisar valores vacios índice de hacinamiento ---------------------------
-table(data_filtrada$hacinamiento, useNA = "ifany")
-
-# Variables únicas (riesgo desalojo, intención moverse, tiempo residencia)
-vars_unica <- c("miembros1", "alojamiento7")
-
-# NA en variables únicas
-na_resumen <- sapply(data_filtrada[vars_unica], function(x) sum(is.na(x)))
-na_resumen
-
-# Orden lógico de categorías
-data_filtrada$hacinamiento <- factor(
-  data_filtrada$hacinamiento,
-  levels = c("Sin hacinamiento", "Moderado", "Crítico")
-)
-
-# Distribución y gráfico de barras hacinamiento --------------------------
-hacinamiento_resumen <- data_filtrada %>%
+# Ordenar dentro de cada categoría de hacinamiento
+necesidades_hacinamiento <- necesidades_hacinamiento %>%
   group_by(hacinamiento) %>%
-  summarise(Frecuencia = n()) %>%
-  mutate(Proporcion = round(100 * Frecuencia / sum(Frecuencia), 1))
-hacinamiento_resumen
+  arrange(desc(conteo), .by_group = TRUE)
 
-hacinamiento <- ggplot(data_filtrada, aes(x = hacinamiento, fill = hacinamiento)) +
-  geom_bar() +
-  theme_minimal() +
+necesidades_hacinamiento
+
+
+ggplot(necesidades_hacinamiento, aes(x = grupo, y = conteo, fill = grupo)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ hacinamiento, scales = "free_y") +
   labs(
-    title = "Distribución del hacinamiento en Bogotá",
-    x = "Categoría de hacinamiento",
+    title = "Necesidades más frecuentes según tipo de hacinamiento",
+    x = "Grupo de necesidad",
     y = "Número de hogares"
   ) +
-  theme(legend.position = "none")
-ggsave("stores/Hacinamiento.png", hacinamiento, width = 7, height = 5, dpi = 300)
-rm(hacinamiento, na_resumen, vars_unica,var_names, hacinamiento_resumen)
+  theme_minimal() +
+  theme(
+    strip.text = element_text(size = 11, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 7), # más pequeño
+    axis.title.x = element_text(margin = margin(t = 10))
+  )
+
 ```
 
-## Análisis de Correlación Hacinamiento vs Ingresos, Productos Finacnieros y Gastos del Hogar.
-```{r G. CORRELACIÓN VARIABLE HACINAMIENTO CON VARIABLES}
-# INTENCIÓN DE MOVERSE Y HACINAMIENTO -------------------------------------------
-df_bubble <- data_filtrada %>%
-  filter(demo22 != "no tienen la intencion de moverse") %>%
-  count(hacinamiento, demo22, name = "n") %>%
-  group_by(hacinamiento) %>%
-  mutate(pct = n / sum(n),
-         pct_lab = percent(pct, accuracy = 0.1)) %>%
-  ungroup()
-
-df_bubble
-
-p_bubble <- ggplot(df_bubble, aes(x = hacinamiento, y = demo22, size = pct, color = hacinamiento)) +
-  geom_point(alpha = 0.75) +
-  scale_size_area(name = "% dentro de hacinamiento", labels = percent_format(accuracy = 1),
-                  max_size = 18) +
-  labs(title = "Hacinamiento vs intención de movilizarse en 6 meses",
-       x = "Nivel de hacinamiento", y = "Intención de movilidad (demo22)") +
-  theme_minimal(base_size = 12)
-p_bubble
-ggsave("stores/hacinamiento_movilidad_bubble.png", p_bubble, width = 12, height = 6, dpi = 300)
-rm(df_bubble,p_bubble)
-```
-
-```{r H. CORRELACIÓN VARIABLE HACINAMIENTO CON INGRESOS y ACCESO A PRODUCTOS FINANCIEROS}
-# RELACIÓN HACINAMIENTO CON VARIABLES DE INGRESO --------------------------- 
-vars_financieras <- c(
-  # Fuentes de ingreso
-  "mediosvida5_mediosvida5_prestamos","mediosvida5_mediosvida5_ahorros",
-  "mediosvida5_mediosvida5_trabajo", "mediosvida5_mediosvida5_asistencia",
-  "mediosvida5_mediosvida5_apoyocomunidad","mediosvida5_mediosvida5_venderbienes",
-  "mediosvida5_mediosvida5_donaciones","mediosvida5_mediosvida5_notiene", "mediosvida5_mediosvida5_otra",   
-  
-  # Productos financieros
-  "mediosvida7_mediosvida7_cuenta_ahorro", "mediosvida7_mediosvida7_cuenta_corriente",
-  "mediosvida7_mediosvida7_billetera_electronica","mediosvida7_mediosvida7_deposito_bajo_monto",
-  "mediosvida7_mediosvida7_microcredito", "mediosvida7_mediosvida7_prestamo_vivienda",
-  "mediosvida7_mediosvida7_prestamo_de_libre_inversion", "mediosvida7_mediosvida7_tarjeta_de_credito",
-  "mediosvida7_mediosvida7_otro", "mediosvida7_mediosvida7_ninguno", 
-  "mediosvida7_mediosvida7_no_sabe",  "mediosvida7_mediosvida7_noresponde"
-)
-# NAs por variable
-na_financieras <- sapply(vars_financieras, \(v) sum(is.na(data_migracion[[v]])))
-na_financieras <- data.frame(variable = names(na_financieras), na_count = as.integer(na_financieras))
-
-# Función para generar gráficos asociados a ingresos
-make_plot_finanzas <- function(df, prefix, titulo, filename) {
-  cols <- grep(paste0("^", prefix), names(df), value = TRUE)
-  
-  df_long <- df %>%
-    # estandariza a binario por si viene "1" o 1
-    mutate(across(all_of(cols), ~ as.integer(. %in% c(1, "1")))) %>%
-    group_by(hacinamiento) %>%
-    summarise(across(all_of(cols), ~ sum(.x, na.rm = TRUE)), .groups = "drop") %>%
-    pivot_longer(-hacinamiento, names_to = "producto", values_to = "conteo") %>%
-    group_by(hacinamiento) %>%
-    mutate(total = sum(conteo), porcentaje = conteo / total) %>%
-    ungroup() %>%
-    mutate(
-      # limpia prefijos largos en nombres de columnas
-      producto = str_remove(producto, paste0("^", prefix, "_", prefix, "_")),
-      producto = str_remove(producto, paste0("^", prefix, "_"))
-    )
-  p <- ggplot(df_long, aes(x = hacinamiento, y = porcentaje, fill = producto)) +
-    geom_col() +
-    scale_y_continuous(labels = percent_format(accuracy = 1)) +
-    labs(title = titulo, x = "Nivel de hacinamiento", y = "Porcentaje dentro de hacinamiento", fill = NULL) +
-    theme_minimal(base_size = 12)
-  
-  if (!dir.exists("stores")) dir.create("stores", recursive = TRUE)
-  ggsave(file.path("stores", filename), p, width = 11, height = 6, dpi = 300)
-  p
-}
-
-# --- Aplicar función para MV5 (fuentes de ingreso) y MV7 (productos financieros) ---
-p_mv5 <- make_plot_finanzas(
-  data_filtrada,
-  "mediosvida5",
-  "Fuentes de ingreso del hogar (porcentaje dentro de cada nivel de hacinamiento)",
-  "mv5_fuentes_ingreso_porcentaje.png"
-)
-
-p_mv7 <- make_plot_finanzas(
-  data_filtrada,
-  "mediosvida7",
-  "Acceso/uso de productos financieros (porcentaje dentro de cada nivel de hacinamiento)",
-  "mv7_productos_financieros_porcentaje.png"
-)
-rm(make_plot_finanzas, p_mv5, p_mv7,na_financieras)
-```
-
-## Segundo analisis a partir de dificultades a nivel hogar
 
 ```{r Cruce necesidades vs hacinamiento}
 # Calcular totales por tipo de hacinamiento (para base de porcentajes)
@@ -1224,8 +1491,13 @@ ggplot(necesidades_hacinamiento, aes(x = grupo, y = pct, fill = hacinamiento)) +
   )
 
 ```
+
+
 ## Exploracion a nivel de las personas
+
+
 ```{r Corte de variables por medios de vida e Integración}
+
 vars_mediosvida <- c(
   "miembros21",  # Tiempo dedicado 
   "miembros22",  # Horas trabajadas
@@ -1251,9 +1523,12 @@ vars_mediosvida <- c(
 # Resumen de valores perdidos (NA) en estas variables
 na_resumen_mediosvida <- sapply(data_bogota[vars_mediosvida], function(x) sum(is.na(x)))
 na_resumen_mediosvida
-```
 
+
+
+```
 ```{r Imputacion NAs}
+
 vars_24b <- c(
   "miembros24b_dificultades_nodocu",
   "miembros24b_dificultades_familia",
@@ -1285,9 +1560,15 @@ data_bogota <- data_bogota %>%
 # Resumen de valores perdidos (NA) en estas variables
 na_resumen_mediosvida <- sapply(data_bogota[vars_mediosvida], function(x) sum(is.na(x)))
 na_resumen_mediosvida
-```
 
+
+
+
+```
 ```{r Tablas estadisiticas por variable}
+
+
+
 vars_principales <- c(
   "miembros21",
   "miembros30",
@@ -1295,6 +1576,7 @@ vars_principales <- c(
   "miembros31a",
   "miembros21b"
 )
+
 
 tabla_cruzada_miembros21 <- data_bogota %>%
   count(miembros21, meses_en_lugar) %>%
@@ -1398,7 +1680,10 @@ p2 <- ggplot(data_bogota %>%
   )
 
 grid.arrange(p1, p2, ncol = 2)
+
+
 ```
+
 
 ```{r NIVEL DE INGRESO A LO LARGO DEL TIEMPO}
 
@@ -1462,8 +1747,6 @@ cruce_dificultades <- data_bogota %>%
 cruce_dificultades
 
 
-
-
 ggplot(cruce_dificultades,
        aes(x = meses_en_lugar, y = frecuencia, fill = dificultad)) +
   geom_col(position = "dodge") +
@@ -1479,12 +1762,9 @@ ggplot(cruce_dificultades,
     legend.position = "bottom",
     legend.text = element_text(size = 8)
   )
-
-
 ```
 
 ```{r Grafico DIFICULTADES}
-
 cruce_dificultades_long <- data_bogota %>%
   select(meses_en_lugar, all_of(vars_dificultades)) %>%
   pivot_longer(cols = -meses_en_lugar,
@@ -1526,6 +1806,9 @@ ggplot(cruce_dificultades_long,
     legend.text  = element_text(size = 7)
   ) +
   guides(fill = guide_legend(nrow = 3, byrow = TRUE))
+
+
+
 ```
 
 
@@ -1611,110 +1894,12 @@ prueba
 
 ```
 Dado que el p-valor = 0.2128 es mayor que el nivel de significancia del 5% (α = 0.05), no se rechaza la hipótesis nula.
-No existe evidencia estadísticamente significativa para afirmar que los hogares sin hacinamiento tienen mayor acceso a productos financieros que los hogares en hacinamiento crítico. Esto significa que la probabilidad de cometer un error tipo I, es decir rechazar incorrectamente la hipótesis nula cuando en realidad es verdadera,  sería del 21.28%, ya que este porcentaje corresponde al total del área de la distribución de probabilidad que se solapa entre ambas hipótesis.
+No existe evidencia estadística mente significativa para afirmar que los hogares sin hacinamiento tienen mayor acceso a productos financieros que los hogares en hacinamiento crítico.
 
-En esta prueba se evaluó si los hogares sin hacinamiento presentan una mayor probabilidad de acceso a productos financieros respecto a aquellos en hacinamiento crítico. La prueba de diferencia de proporciones sin corrección por continuidad mostró que las proporciones de acceso son 0.530 en hogares sin hacinamiento y 0.455 en hogares con hacinamiento crítico. Sin embargo, esta diferencia no es estadísticamente significativa (χ² = 0.6345; p-valor = 0.2128; IC95%: 
+Se evaluó si los hogares sin hacinamiento presentan una mayor probabilidad de acceso a productos financieros respecto a aquellos en hacinamiento crítico. La prueba de diferencia de proporciones sin corrección por continuidad mostró que las proporciones de acceso son 0.530 en hogares sin hacinamiento y 0.455 en hogares con hacinamiento crítico. Sin embargo, esta diferencia no es estadísticamente significativa (χ² = 0.6345; p-valor = 0.2128; IC95%: 
 −0.080,1.000).
 
 Por lo tanto, no se rechaza la hipótesis nula, lo cual indica que, con los datos disponibles, no se puede concluir que el hacinamiento crítico reduzca el acceso financiero en comparación con los hogares no hacinados.
-
-```{r Grafica prueba 1}
-
-p_valor <- prueba$p.value
-z_obs   <- sqrt(unname(prueba$statistic)) * sign(diff(prueba$estimate))
-alpha   <- 0.05
-tipo_prueba <- prueba$alternative  # "two.sided", "greater", "less"
-media <- 0
-
-# Se definen los valores para realizar el grafico-------------
-x <- seq(-4, 4, length.out = 1000)
-df <- tibble(
-  x = x,
-  H0 = dnorm(x, mean = media, sd = 1),
-  H1 = dnorm(x, mean = z_obs, sd = 1)
-)
-
-# Valores críticos e intervalo según tipo de prueba
-if (tipo_prueba == "two.sided") {
-  z_crit <- c(qnorm(alpha / 2), qnorm(1 - alpha / 2))
-  z_IC   <- c(-1.96, 1.96)
-} else if (tipo_prueba == "greater") {
-  z_crit <- c(NA, qnorm(1 - alpha))
-  z_IC   <- c(media, z_crit[2])
-} else {  # "less"
-  z_crit <- c(qnorm(alpha), NA)
-  z_IC   <- c(z_crit[1], media)
-}
-
-z_critico <- ifelse(is.na(z_crit[2]), z_crit[1], z_crit[2])
-
-
-# Gráfico principal---------------------------------------------
-p_z <- ggplot(df, aes(x)) +
-  # Curvas de H0 y H1
-  geom_line(aes(y = H0, color = "H0: sin efecto (μ = 0)"), size = 1.1) +
-  geom_line(aes(y = H1, color = "H1: con efecto observado"), size = 1.1, linetype = "dashed") +
-
-  # Región crítica
-  {
-    if (tipo_prueba == "two.sided") {
-      geom_area(data = df |> filter(x <= z_crit[1]), aes(y = H0), fill = "red", alpha = 0.3) +
-      geom_area(data = df |> filter(x >= z_crit[2]), aes(y = H0), fill = "red", alpha = 0.3)
-    } else if (tipo_prueba == "greater") {
-      geom_area(data = df |> filter(x >= z_crit[2]), aes(y = H0), fill = "red", alpha = 0.3)
-    } else {
-      geom_area(data = df |> filter(x <= z_crit[1]), aes(y = H0), fill = "red", alpha = 0.3)
-    }
-  } +
-
-  # Media e intervalo bajo H₀
-  geom_vline(xintercept = media, color = "gray40", size = 0.8) +
-  geom_vline(xintercept = z_IC, color = "black", linetype = "dotted", size = 0.9) +
-
-  # Marcadores
-  geom_point(aes(x = z_obs, y = 0), color = "black", size = 4, shape = 17) +
-  geom_point(aes(x = z_critico, y = 0), color = "red", size = 4, shape = 17) +
-
-  # Etiquetas
-  annotate("text", x = media, y = 0.42, label = "μ = 0", color = "gray40",
-           size = 4.5, fontface = "italic") +
-  annotate("text", x = z_obs, y = 0.025,
-           label = paste0("Z observado = ", round(z_obs, 3)),
-           color = "black", size = 3.3, vjust = -0.5) +
-  annotate("text", x = z_critico, y = 0.025,
-           label = paste0("Z crítico = ", round(z_critico, 2)),
-           color = "red", size = 3.3, vjust = -0.5) +
-  annotate("text", x = 0, y = -0.02,
-           label = paste0("p-valor = ", round(p_valor, 4)),
-           color = "black", size = 3.5, fontface = "italic") +
-
-  # Estilo general
-  scale_color_manual(values = c(
-    "H0: sin efecto (μ = 0)" = "blue",
-    "H1: con efecto observado" = "darkgreen"
-  )) +
-  coord_cartesian(ylim = c(-0.05, 0.45)) +
-  theme_minimal(base_size = 14) +
-  theme(legend.position = "top",
-        plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
-        plot.subtitle = element_text(size = 10, hjust = 0.5)) +
-  labs(
-    title = "Acceso financiero: prueba de comparación (Sin hacinamiento Vs Hacinamiento crítico)",
-    subtitle = paste0(" Distribución normal estándar (Z) , Prueba unilateral de diferencia de proporciones (α = ", alpha, ")"),
-    x = "Valor Z",
-    y = "Densidad",
-    color = "Distribución"
-  )
-
-p_z
-
-
-# Guardar en PNG
-ggsave("stores/Distribucion_prueba_acceso_financiero.png",plot = p_z, width = 8, height = 5, dpi = 300)
-
-
-```
-
 
 
 
@@ -1749,105 +1934,6 @@ prueba_MC
 ```
 La proporción de acceso financiero es significativamente mayor en los hogares con hacinamiento moderado (0.763) comparado con los hogares con hacinamiento crítico (0.455), según la prueba de diferencia de proporciones unilateral (χ² = 8.86; p = 0.00146).
 Se rechaza la hipótesis nula, concluyendo que el acceso financiero disminuye de manera estadísticamente significativa cuando el hacinamiento pasa de moderado a crítico.
-
-```{r Grafica prueba 2}
-
-p_valor <- prueba_MC$p.value
-z_obs   <- sqrt(unname(prueba_MC$statistic)) * sign(diff(prueba_MC$estimate))
-alpha   <- 0.05
-tipo_prueba <- prueba_MC$alternative  # "two.sided", "greater", "less"
-media <- 0
-
-# Se definen los valores para realizar el grafico-------------
-x <- seq(-4, 4, length.out = 1000)
-df <- tibble(
-  x = x,
-  H0 = dnorm(x, mean = media, sd = 1),
-  H1 = dnorm(x, mean = z_obs, sd = 1)
-)
-
-# Valores críticos e intervalo según tipo de prueba
-if (tipo_prueba == "two.sided") {
-  z_crit <- c(qnorm(alpha / 2), qnorm(1 - alpha / 2))
-  z_IC   <- c(-1.96, 1.96)
-} else if (tipo_prueba == "greater") {
-  z_crit <- c(NA, qnorm(1 - alpha))
-  z_IC   <- c(media, z_crit[2])
-} else {  # "less"
-  z_crit <- c(qnorm(alpha), NA)
-  z_IC   <- c(z_crit[1], media)
-}
-
-z_critico <- ifelse(is.na(z_crit[2]), z_crit[1], z_crit[2])
-
-
-# Gráfico principal---------------------------------------------
-p_z <- ggplot(df, aes(x)) +
-  # Curvas de H0 y H1
-  geom_line(aes(y = H0, color = "H0: sin efecto (μ = 0)"), size = 1.1) +
-  geom_line(aes(y = H1, color = "H1: con efecto observado"), size = 1.1, linetype = "dashed") +
-
-  # Región crítica
-  {
-    if (tipo_prueba == "two.sided") {
-      geom_area(data = df |> filter(x <= z_crit[1]), aes(y = H0), fill = "red", alpha = 0.3) +
-      geom_area(data = df |> filter(x >= z_crit[2]), aes(y = H0), fill = "red", alpha = 0.3)
-    } else if (tipo_prueba == "greater") {
-      geom_area(data = df |> filter(x >= z_crit[2]), aes(y = H0), fill = "red", alpha = 0.3)
-    } else {
-      geom_area(data = df |> filter(x <= z_crit[1]), aes(y = H0), fill = "red", alpha = 0.3)
-    }
-  } +
-
-  # Media e intervalo bajo H₀
-  geom_vline(xintercept = media, color = "gray40", size = 0.8) +
-  geom_vline(xintercept = z_IC, color = "black", linetype = "dotted", size = 0.9) +
-
-  # Marcadores
-  geom_point(aes(x = z_obs, y = 0), color = "black", size = 4, shape = 17) +
-  geom_point(aes(x = z_critico, y = 0), color = "red", size = 4, shape = 17) +
-
-  # Etiquetas
-  annotate("text", x = media, y = 0.42, label = "μ = 0", color = "gray40",
-           size = 4.5, fontface = "italic") +
-  annotate("text", x = z_obs, y = 0.025,
-           label = paste0("Z observado = ", round(z_obs, 3)),
-           color = "black", size = 3.3, vjust = -0.5) +
-  annotate("text", x = z_critico, y = 0.025,
-           label = paste0("Z crítico = ", round(z_critico, 2)),
-           color = "red", size = 3.3, vjust = -0.5) +
-  annotate("text", x = 0, y = -0.02,
-           label = paste0("p-valor = ", round(p_valor, 4)),
-           color = "black", size = 3.5, fontface = "italic") +
-
-  # Estilo general
-  scale_color_manual(values = c(
-    "H0: sin efecto (μ = 0)" = "blue",
-    "H1: con efecto observado" = "darkgreen"
-  )) +
-  coord_cartesian(ylim = c(-0.05, 0.45)) +
-  theme_minimal(base_size = 14) +
-  theme(legend.position = "top",
-        plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
-        plot.subtitle = element_text(size = 10, hjust = 0.5)) +
-  labs(
-    title = "Acceso financiero: prueba de comparación (Hacinamiento moderado Vs Hacinamiento crítico)",
-    subtitle = paste0(" Distribución normal estándar (Z) , Prueba unilateral de diferencia de proporciones (α = ", alpha, ")"),
-    x = "Valor Z",
-    y = "Densidad",
-    color = "Distribución"
-  )
-
-p_z
-
-
-# Guardar en PNG
-ggsave("stores/Distribucion_prueba_acceso_financiero_2.png",plot = p_z, width = 8, height = 5, dpi = 300)
-
-
-```
-
-
 
 ```{r Problemas de vivienda}
 preg_multi <- c("alojamiento3")
@@ -2039,9 +2125,6 @@ tabla_probs_SC
 prop.table(tabla_probs_SC, 1)
 ```
 
-
-
-
 ## 2) Prueba de problemas de vivienda
 Hipótesis formal (Problemas vivienda: Sin vs Crítico)
 H0: p_Crítico <= p_Sin
@@ -2071,102 +2154,8 @@ prueba_SC <- prop.test(x_SC, n_SC,
 prueba_SC
 ```
 La proporción de hogares que reporta al menos un problema de vivienda o entorno es significativamente mayor en los hogares con hacinamiento crítico (51.5%), en comparación con los hogares sin hacinamiento (23.2%).
-La prueba estadística unilateral para diferencia de proporciones indica que esta diferencia es estadísticamente significativa (χ² = 10.97; p = 0.00046), por lo que se rechaza la hipótesis nula.Dado que el p-valor es muy inferior al nivel de significancia del 5% (α = 0.05), la probabilidad de incurrir en un error tipo I, es menor al 0.05%, lo que otorga un alto nivel de confianza en el resultado obtenido ya que las areas de la distribución que se cruzan son minimas.
+La prueba estadística unilateral para diferencia de proporciones indica que esta diferencia es estadísticamente significativa (χ² = 10.97; p = 0.00046), por lo que se rechaza la hipótesis nula.
 Esto confirma que, a mayor severidad del hacinamiento, se intensifican las dificultades asociadas al entorno y las condiciones de habitabilidad del hogar.
-
-```{r Grafico prueba 3}
-
-p_valor <- prueba_SC$p.value
-z_obs   <- sqrt(unname(prueba_SC$statistic)) * sign(diff(prueba_SC$estimate))
-alpha   <- 0.05
-tipo_prueba <- prueba_SC$alternative  # "less"
-media <- 0
-
-# ============================================================
-# Curvas teóricas de H₀ y H₁
-# ============================================================
-x <- seq(-4, 4, length.out = 1000)
-df <- tibble(
-  x = x,
-  H0 = dnorm(x, mean = media, sd = 1),
-  H1 = dnorm(x, mean = z_obs, sd = 1)
-)
-
-# ============================================================
-# Valores críticos e intervalo según tipo de prueba
-# ============================================================
-if (tipo_prueba == "two.sided") {
-  z_crit <- c(qnorm(alpha / 2), qnorm(1 - alpha / 2))
-  z_IC   <- c(-1.96, 1.96)
-} else if (tipo_prueba == "greater") {
-  z_crit <- c(NA, qnorm(1 - alpha))
-  z_IC   <- c(media, z_crit[2])
-} else {  # "less"
-  z_crit <- c(qnorm(alpha), NA)
-  z_IC   <- c(z_crit[1], media)
-}
-
-z_critico <- ifelse(is.na(z_crit[2]), z_crit[1], z_crit[2])
-
-# ============================================================
-# GRAFICAR DISTRIBUCIONES H₀ Y H₁
-# ============================================================
-p_SC <- ggplot(df, aes(x)) +
-  # Curvas de H0 y H1
-  geom_line(aes(y = H0, color = "H0: sin efecto (μ = 0)"), size = 1.1) +
-  geom_line(aes(y = H1, color = "H1: con efecto observado"), size = 1.1, linetype = "dashed") +
-
-  # Región crítica
-  geom_area(data = df |> filter(x <= z_crit[1]), aes(y = H0), fill = "red", alpha = 0.3) +
-
-  # Media e intervalo bajo H₀
-  geom_vline(xintercept = media, color = "gray40", size = 0.8) +
-  geom_vline(xintercept = z_IC, color = "black", linetype = "dotted", size = 0.9) +
-
-  # Marcadores
-  geom_point(aes(x = z_obs, y = 0), color = "black", size = 4, shape = 17) +
-  geom_point(aes(x = z_critico, y = 0), color = "red", size = 4, shape = 17) +
-
-  # Etiquetas
-  annotate("text", x = media, y = 0.42, label = "μ = 0", color = "gray40",
-           size = 4.5, fontface = "italic") +
-  annotate("text", x = z_obs, y = 0.025,
-           label = paste0("Z observado = ", round(z_obs, 3)),
-           color = "black", size = 3.3, vjust = -0.5) +
-  annotate("text", x = z_critico, y = 0.025,
-           label = paste0("Z crítico = ", round(z_critico, 2)),
-           color = "red", size = 3.3, vjust = -0.5) +
-  annotate("text", x = 0, y = -0.02,
-           label = paste0("p-valor = ", round(p_valor, 4)),
-           color = "black", size = 3.5, fontface = "italic") +
-
-  # Estilo general
-  scale_color_manual(values = c(
-    "H0: sin efecto (μ = 0)" = "blue",
-    "H1: con efecto observado" = "darkgreen"
-  )) +
-  coord_cartesian(ylim = c(-0.05, 0.45)) +
-  theme_minimal(base_size = 14) +
-  theme(legend.position = "top",
-        plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
-        plot.subtitle = element_text(size = 10, hjust = 0.5)) +
-  labs(
-    title = "Problemas en Vivienda: prueba de comparación (Sin hacinamiento Vs Hacinamiento crítico)",
-    subtitle = paste0(" Distribución normal estándar (Z) , Prueba unilateral de diferencia de proporciones (α = ", alpha, ")"),
-    x = "Valor Z",
-    y = "Densidad",
-    color = "Distribución"
-  )
-
-p_SC
-
-
-# Guardar en PNG
-ggsave("stores/Distribucion_prueba_problemas_vivienda.png",plot = p_SC, width = 8, height = 5, dpi = 300)
-
-
-```
-
 
 
 
@@ -2199,100 +2188,6 @@ prueba_viv
 ```
 Aunque el porcentaje de hogares que reporta al menos un problema relacionado con la vivienda o el entorno es mayor entre aquellos con hacinamiento crítico (51,5%) respecto a los de hacinamiento moderado (44,1%), la diferencia no es estadísticamente significativa (p = 0,754).
 Esto sugiere que, en esta muestra, las condiciones físicas y ambientales de la vivienda y el entorno no difieren sustancialmente entre niveles de hacinamiento moderado y crítico.
-
-```{r Grafico prueba 4}
-
-p_valor <- prueba_viv$p.value
-z_obs   <- sqrt(unname(prueba_viv$statistic)) * sign(diff(prueba_viv$estimate))
-alpha   <- 0.05
-tipo_prueba <- prueba_viv$alternative  # "less"
-media <- 0
-
-# ============================================================
-# Curvas teóricas de H₀ y H₁
-# ============================================================
-x <- seq(-4, 4, length.out = 1000)
-df <- tibble(
-  x = x,
-  H0 = dnorm(x, mean = media, sd = 1),
-  H1 = dnorm(x, mean = z_obs, sd = 1)
-)
-
-# ============================================================
-# Valores críticos e intervalo según tipo de prueba
-# ============================================================
-if (tipo_prueba == "two.sided") {
-  z_crit <- c(qnorm(alpha / 2), qnorm(1 - alpha / 2))
-  z_IC   <- c(-1.96, 1.96)
-} else if (tipo_prueba == "greater") {
-  z_crit <- c(NA, qnorm(1 - alpha))
-  z_IC   <- c(media, z_crit[2])
-} else {  # "less"
-  z_crit <- c(qnorm(alpha), NA)
-  z_IC   <- c(z_crit[1], media)
-}
-
-z_critico <- ifelse(is.na(z_crit[2]), z_crit[1], z_crit[2])
-
-# ============================================================
-# GRAFICAR DISTRIBUCIONES H₀ Y H₁
-# ============================================================
-p_SC <- ggplot(df, aes(x)) +
-  # Curvas de H0 y H1
-  geom_line(aes(y = H0, color = "H0: sin efecto (μ = 0)"), size = 1.1) +
-  geom_line(aes(y = H1, color = "H1: con efecto observado"), size = 1.1, linetype = "dashed") +
-
-  # Región crítica
-  geom_area(data = df |> filter(x <= z_crit[1]), aes(y = H0), fill = "red", alpha = 0.3) +
-
-  # Media e intervalo bajo H₀
-  geom_vline(xintercept = media, color = "gray40", size = 0.8) +
-  geom_vline(xintercept = z_IC, color = "black", linetype = "dotted", size = 0.9) +
-
-  # Marcadores
-  geom_point(aes(x = z_obs, y = 0), color = "black", size = 4, shape = 17) +
-  geom_point(aes(x = z_critico, y = 0), color = "red", size = 4, shape = 17) +
-
-  # Etiquetas
-  annotate("text", x = media, y = 0.42, label = "μ = 0", color = "gray40",
-           size = 4.5, fontface = "italic") +
-  annotate("text", x = z_obs, y = 0.025,
-           label = paste0("Z observado = ", round(z_obs, 3)),
-           color = "black", size = 3.3, vjust = -0.5) +
-  annotate("text", x = z_critico, y = 0.025,
-           label = paste0("Z crítico = ", round(z_critico, 2)),
-           color = "red", size = 3.3, vjust = -0.5) +
-  annotate("text", x = 0, y = -0.02,
-           label = paste0("p-valor = ", round(p_valor, 4)),
-           color = "black", size = 3.5, fontface = "italic") +
-
-  # Estilo general
-  scale_color_manual(values = c(
-    "H0: sin efecto (μ = 0)" = "blue",
-    "H1: con efecto observado" = "darkgreen"
-  )) +
-  coord_cartesian(ylim = c(-0.05, 0.45)) +
-  theme_minimal(base_size = 14) +
-  theme(legend.position = "top",
-        plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
-        plot.subtitle = element_text(size = 10, hjust = 0.5)) +
-  labs(
-    title = "Problemas en Vivienda: prueba de comparación (Hacinamiento moderado Vs Hacinamiento crítico)",
-    subtitle = paste0(" Distribución normal estándar (Z) , Prueba unilateral de diferencia de proporciones (α = ", alpha, ")"),
-    x = "Valor Z",
-    y = "Densidad",
-    color = "Distribución"
-  )
-
-p_SC
-
-
-# Guardar en PNG
-ggsave("stores/Distribucion_prueba_problemas_vivienda_2.png",plot = p_SC, width = 8, height = 5, dpi = 300)
-
-
-```
-
 
 ```{r Gasto en vivienda}
 # Resumen de la variable de gasto en vivienda
@@ -2403,7 +2298,7 @@ pairwise.wilcox.test(
 )
 ```
 
-Al evaluar el porcentaje del gasto total del hogar destinado a vivienda según el nivel de hacinamiento, se aplicó la prueba de Kruskal–Wallis debido al incumplimiento del supuesto de normalidad. El resultado no mostró diferencias globales estadísticamente significativas (χ² = 5.81, p = 0.0547).En términos del riesgo de error tipo I, este valor indica que la probabilidad de rechazar la hipótesis nula siendo verdadera es del 5.47%, ligeramente superior al nivel de significancia establecido (α = 0.05), por lo que no se rechaza la hipótesis nula.
+Al evaluar el porcentaje del gasto total del hogar destinado a vivienda según el nivel de hacinamiento, se aplicó la prueba de Kruskal–Wallis debido al incumplimiento del supuesto de normalidad. El resultado no mostró diferencias globales estadísticamente significativas (χ² = 5.81, p = 0.0547).
 Sin embargo, las comparaciones por pares indicaron que los hogares con hacinamiento moderado destinan un porcentaje significativamente menor de su gasto total a vivienda en comparación con los hogares sin hacinamiento (p = 0.045).
 No se encontraron diferencias significativas entre los hogares en hacinamiento crítico y los demás niveles. Esto sugiere que la relación entre gasto en vivienda y hacinamiento no es estrictamente lineal, pues los hogares con hacinamiento moderado pueden estar expuestos a mayores presiones económicas en otras necesidades básicas.
 
@@ -2417,6 +2312,5 @@ Conclusión general (Parte 2 — Contrastes)
  Interpretación: el hacinamiento está asociado a distintas dimensiones de vulnerabilidad;
  la política pública debería priorizar acciones sobre vivienda y acceso financiero para hogares críticos,
  y programas de apoyo socio económico para hogares moderados cuya vulnerabilidad está menos visible.
-
 
 
