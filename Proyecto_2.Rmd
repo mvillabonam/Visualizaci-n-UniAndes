@@ -1,0 +1,488 @@
+---
+title: "Proyecto 2 - Visualización y Exploración de bases de datos"
+author: " Henry Carvajal (201718787),Julian Delgado (201712798) , Mariana Villabona (201816559)"
+date: "Visualización y Exploración de datos para ciencias sociales"
+output: html_document
+---
+```{r Setup}
+
+# --- Limpiar entorno
+rm(list = ls())
+gc()
+closeAllConnections()
+
+# --- Cargar librerías necesarias
+library("pacman")
+require("pacman")
+p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggplot2,openxlsx, writexl,stringi, patchwork, skimr,tidyverse, readxl, ggthemes, plotly,sf,osmdata,dplyr, scales)
+
+# --- Definir rutas
+user <- Sys.getenv("USERNAME")
+
+if (user == "judel") {
+  path <- file.path(  "C:/Users", "judel", "OneDrive", "Documentos",
+  "ANDES", "Semestre 3", "Visualizacion de datos", "Proyecto 2",
+  "wetransfer_geih_2025-11-17_1556")
+} else if (user == "mvill") {
+  path <- file.path("C:/Users", "mvill", "OneDrive", "Transitorio", "OneDrive", 
+                    "Documentos", "GitHub", "Visualizaci-n-UniAndes","Taller 2")
+} else if (user == "hncar") {
+  path <- file.path("C:/Users", "hncar", "Documents", "GitHub", "Visualizaci-n-UniAndes", "Taller 2")
+} else {
+  path <- choose.dir(caption = "Selecciona la carpeta con los archivos")
+}
+
+options(scipen = 999)  # desactiva notación científica
+
+
+setwd(path)
+
+ruta_datos <- file.path(path, "data/GEIH_2024")
+
+```
+
+
+```{r Union bases}
+meses <- 1:12
+llave <- c("PERIODO", "MES", "PER", "DPTO", "DIRECTORIO", "SECUENCIA_P", "ORDEN", "FEX_C18")
+
+lista_meses <- list()
+
+for (m in meses) {
+
+  archivos <- c(
+    "Características generales, seguridad social en salud y educación.csv",
+    "Fuerza de trabajo.csv",
+    "No ocupados.csv",
+    "Ocupados.csv"
+  )
+  nombres <- c("generales", "fuerza", "desocupados", "ocupados")
+
+  for (i in seq_along(archivos)) {
+    ruta <- file.path(ruta_datos, m, archivos[i])
+    datos <- read.csv(ruta, sep = ";", dec = ".", fileEncoding = "UTF-8", stringsAsFactors = FALSE)
+    assign(nombres[i], datos)
+  }
+
+  base_mes <- generales %>%
+    left_join(fuerza, by = llave) %>%
+    left_join(ocupados, by = llave) %>%
+    left_join(desocupados, by = llave)
+
+  lista_meses[[m]] <- base_mes
+}
+
+# Limpieza de formatos
+lista_meses <- lapply(lista_meses, function(df) {
+  df %>% mutate(OFICIO_C8 = as.character(OFICIO_C8),
+                MES = as.character(MES))
+})
+
+ANUAL <- bind_rows(lista_meses)
+
+rm(base_mes, generales, fuerza, ocupados, desocupados, datos)
+```
+
+
+```{r Seleccionar variables relevantes}
+variables_select <- ANUAL %>%
+  select(
+    # Identificación
+    PERIODO, MES, DIRECTORIO, SECUENCIA_P, ORDEN,
+
+    # Sexo, edad
+    P3271, P6040,
+
+    # Educación
+    P3042,
+
+    # Mercado laboral
+    P6240, P6240S1, P6240S2,
+    P6430,
+
+    # Ubicación
+    DPTO, AREA.x, CLASE.x,
+
+    # Factor de expansión
+    FEX_C18
+  )
+
+```
+
+
+```{r Seleccionar variables relevantes}
+variables_select <- variables_select %>%
+  mutate(
+    PERIODO = as.Date(as.character(PERIODO), format = "%Y%m%d"),
+    ANO = format(PERIODO, "%Y")
+  ) %>%
+  select(-PERIODO)
+```
+
+
+```{r Ajustar Variables}
+variables_etiquetas <- variables_select %>%
+  mutate(
+    P3271 = case_when(
+      P3271 == 1 ~ "Hombre",
+      P3271 == 2 ~ "Mujer"))
+    
+variables_etiquetas <- variables_etiquetas %>%
+  mutate(
+    P3042 = case_when(
+      P3042 == 1  ~ "Ninguno",
+      P3042 == 2  ~ "Preescolar",
+      P3042 == 3  ~ "Básica primaria (1-5)",
+      P3042 == 4  ~ "Básica secundaria (6-9)",
+      P3042 == 5  ~ "Media académica",
+      P3042 == 6  ~ "Media técnica",
+      P3042 == 7  ~ "Normalista",
+      P3042 == 8  ~ "Técnica profesional",
+      P3042 == 9  ~ "Tecnológica",
+      P3042 == 10 ~ "Universitaria",
+      P3042 == 11 ~ "Especialización",
+      P3042 == 12 ~ "Maestría",
+      P3042 == 13 ~ "Doctorado",
+      P3042 == 99 ~ "No sabe / No informa",
+      TRUE ~ "Otro / No especificado"
+    ))
+
+variables_etiquetas <- variables_etiquetas %>%
+  mutate(
+    P6240 = case_when(
+      P6240 == 1 ~ "Trabajando",
+      P6240 == 2 ~ "Buscando trabajo",
+      P6240 == 3 ~ "Estudiando",
+      P6240 == 4 ~ "Oficios del hogar",
+      P6240 == 5 ~ "Incapacitado permanente",
+      P6240 == 6 ~ "Otra actividad",
+      TRUE ~ "Otro / No especificado"
+    ))
+
+variables_etiquetas <- variables_etiquetas %>%
+  mutate(
+    P6430 = case_when(
+      P6430 == 1 ~ "Obrero o empleado empresa privada",
+      P6430 == 2 ~ "Obrero o empleado gobierno",
+      P6430 == 3 ~ "Empleado doméstico",
+      P6430 == 4 ~ "Cuenta propia",
+      P6430 == 5 ~ "Patrón o empleador",
+      P6430 == 6 ~ "Familiar sin remuneración",
+      P6430 == 7 ~ "No remunerado en negocio de otros hogares",
+      P6430 == 8 ~ "Jornalero o peón",
+      P6430 == 9 ~ "Otro",
+      TRUE ~ "Otro / No especificado"
+    ))
+
+variables_etiquetas <- variables_etiquetas %>%
+  mutate(
+    fex_c = as.numeric(FEX_C18),
+    edad = as.numeric(P6040),
+  )
+
+variables_etiquetas <- variables_etiquetas %>%
+  filter(edad >= 18)
+
+variables_etiquetas <- variables_etiquetas %>%
+  mutate(
+    estado_laboral = case_when(
+      P6240 == "Trabajando" ~ "Ocupado",
+      P6240 == "Buscando trabajo" ~ "Desocupado",
+      P6240 %in% c("Estudiando", "Oficios del hogar",
+                   "Incapacitado permanente", "Otra actividad") ~ "Inactivo",
+      P6240 == 14 ~ "No especificado",
+      TRUE ~ "No clasificado"
+    )
+  )
+
+variables_etiquetas <- variables_etiquetas %>%
+  mutate(
+    participa = case_when(
+      estado_laboral %in% c("Ocupado", "Desocupado") ~ 1,
+      estado_laboral == "Inactivo" ~ 0,
+      TRUE ~ NA_real_
+    )
+  )
+
+variables_etiquetas <- variables_etiquetas %>%
+  mutate(
+    region = case_when(
+      DPTO %in% c(8, 13, 44, 47, 19, 70, 23) ~ "Caribe",
+      DPTO %in% c(5, 11, 15, 17, 18, 25, 41, 50, 52, 54, 68, 73, 76, 81, 85, 86, 91) ~ "Andina",
+      DPTO %in% c(52) ~ "Pacífico",
+      DPTO %in% c(97, 99) ~ "Amazonía",
+      DPTO %in% c(88) ~ "San Andrés",
+      TRUE ~ "Otras"
+    )
+  )
+
+
+```
+
+
+```{r Na}
+vars_relevantes <- c("P3271","edad","P3042","P6240","P6430","DPTO","fex_c", "estado_laboral")
+
+na_summary <- sapply(variables_etiquetas[vars_relevantes], function(x) {
+  round(mean(is.na(x)) * 100, 2)
+})
+
+na_summary
+```
+```{r Outliers}
+Q1 <- quantile(variables_etiquetas$edad, 0.25)
+Q3 <- quantile(variables_etiquetas$edad, 0.75)
+IQR <- Q3 - Q1
+lim_inf <- Q1 - 1.5*IQR
+lim_sup <- Q3 + 1.5*IQR
+
+sum(variables_etiquetas$edad < lim_inf | variables_etiquetas$edad > lim_sup)
+
+```
+Para identificar posibles valores atípicos en la variable edad, se aplicó el criterio estadístico basado en el rango intercuartílico (IQR). Se calcularon los límites inferior y superior como Q1 − 1.5·IQR y Q3 + 1.5·IQR, respectivamente. A partir de este procedimiento se identificaron 9 observaciones con edades entre 103 y 108 años.
+
+Tras revisar manualmente estos registros, se concluyó que, aunque poco frecuentes, estas edades son plausibles en una encuesta poblacional como la GEIH. Por lo tanto, no se consideraron errores ni valores imposibles, y se decidió conservarlos en la base de datos, evitando introducir un sesgo por eliminación injustificada de adultos mayores. Esta decisión no afecta de manera significativa los análisis posteriores, dado su bajo peso relativo en la muestra.
+
+```{r Outliers}
+outliers_edad <- variables_etiquetas %>%
+  filter(edad < lim_inf | edad > lim_sup) %>%
+  select(DIRECTORIO, SECUENCIA_P, ORDEN, edad)
+
+outliers_edad
+
+
+```
+
+```{r }
+summary(variables_etiquetas$edad)
+
+table(variables_etiquetas$P3271)
+prop.table(table(variables_etiquetas$P3271)) * 100
+
+table(variables_etiquetas$estado_laboral)
+prop.table(table(variables_etiquetas$estado_laboral)) * 100
+
+table(variables_etiquetas$P3042)
+
+table(variables_etiquetas$DPTO)
+```
+
+
+```{r Univariado}
+# Frecuencia
+table(variables_etiquetas$P3271)
+
+# Porcentajes
+prop.table(table(variables_etiquetas$P3271)) * 100
+
+# Gráfico
+ggplot(variables_etiquetas, aes(P3271, weight = fex_c)) +
+  geom_bar() +
+  theme_minimal() +
+  labs(title = "Distribución por género",
+       y = "Personas (expandido)",
+       x = "Género")
+
+```
+
+
+```{r Univariado}
+summary(variables_etiquetas$edad)
+
+ggplot(variables_etiquetas, aes(edad)) +
+  geom_histogram(bins = 40) +
+  theme_minimal() +
+  labs(title = "Distribución de la edad de la población",
+       x = "Edad",
+       y = "Frecuencia")
+
+ggplot(variables_etiquetas, aes(y = edad)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(title = "Boxplot de Edad")
+
+```
+
+
+```{r Univariado}
+table(variables_etiquetas$P3042)
+prop.table(table(variables_etiquetas$P3042)) * 100
+
+ggplot(variables_etiquetas, aes(P3042, weight = fex_c)) +
+  geom_bar() +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "Nivel educativo de la población",
+       x = "Nivel educativo",
+       y = "Personas (expandido)")
+
+```
+
+
+```{r Univariado}
+table(variables_etiquetas$P6240)
+prop.table(table(variables_etiquetas$P6240)) * 100
+
+ggplot(variables_etiquetas, aes(P6240, weight = fex_c)) +
+  geom_bar() +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "Condición laboral declarada",
+       x = "Actividad",
+       y = "Personas (expandido)")
+
+```
+
+
+```{r Univariado}
+table(variables_etiquetas$estado_laboral)
+prop.table(table(variables_etiquetas$estado_laboral)) * 100
+
+ggplot(variables_etiquetas, aes(estado_laboral, weight = fex_c)) +
+  geom_bar() +
+  theme_minimal() +
+  labs(title = "Estado laboral (clasificación final)",
+       x = "Estado",
+       y = "Personas (expandido)")
+
+```
+
+
+```{r Univariado}
+# Participación laboral (1 = participa, 0 = no participa)
+table(variables_etiquetas$participa)
+prop.table(table(variables_etiquetas$participa)) * 100
+
+ggplot(variables_etiquetas, aes(as.factor(participa), weight = fex_c)) +
+  geom_bar() +
+  theme_minimal() +
+  labs(title = "Participación laboral de la población adulta",
+       x = "Participa (1 = sí)",
+       y = "Personas (expandido)")
+
+```
+
+
+```{r Univariado}
+# Frecuencia por región
+table(variables_etiquetas$region)
+prop.table(table(variables_etiquetas$region)) * 100
+
+# Gráfico
+ggplot(variables_etiquetas, aes(region, weight = fex_c)) +
+  geom_bar() +
+  theme_minimal() +
+  labs(title = "Distribución de la población por región",
+       x = "Región",
+       y = "Personas (expandido)")
+
+```
+
+
+```{r bivariado}
+# Participación por género
+participacion_genero <- variables_etiquetas %>%
+  group_by(P3271) %>%
+  summarise(
+    tasa_participacion = weighted.mean(participa, w = fex_c, na.rm = TRUE)
+  )
+
+participacion_genero
+
+```
+
+
+```{r bivariado}
+ggplot(participacion_genero, aes(x = P3271, y = tasa_participacion, fill = P3271)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal() +
+  labs(
+    title = "Tasa de participación laboral por género",
+    x = "Género",
+    y = "Tasa de participación"
+  )
+
+```
+
+
+```{r bivariado}
+participacion_region <- variables_etiquetas %>%
+  group_by(region) %>%
+  summarise(
+    tasa_participacion = weighted.mean(participa, w = fex_c, na.rm = TRUE)
+  )
+
+participacion_region
+
+```
+
+
+```{r bivariado}
+ggplot(participacion_region, aes(x = region, y = tasa_participacion, fill = region)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal() +
+  labs(
+    title = "Tasa de participación laboral por región",
+    x = "Región",
+    y = "Tasa de participación"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+```{r bivariado}
+participacion_genero_region <- variables_etiquetas %>%
+  group_by(region, P3271) %>%
+  summarise(
+    tasa = weighted.mean(participa, w = fex_c, na.rm = TRUE),
+    n = n()
+  )
+
+participacion_genero_region
+
+```
+
+
+```{r bivariado}
+ggplot(participacion_genero_region, aes(x = region, y = tasa, fill = P3271)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal() +
+  labs(
+    title = "Tasa de participación laboral por género y región",
+    x = "Región",
+    y = "Tasa de participación",
+    fill = "Género"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+```{r bivariado}
+brecha_genero_region <- participacion_genero_region %>%
+  select(region, P3271, tasa) %>%
+  pivot_wider(names_from = P3271, values_from = tasa) %>%
+  mutate(brecha = Hombre - Mujer)
+
+brecha_genero_region
+
+```
+
+
+```{r bivariado}
+# Muestras expandidas
+hombres <- variables_etiquetas %>% filter(P3271 == "Hombre")
+mujeres <- variables_etiquetas %>% filter(P3271 == "Mujer")
+
+prop.test(
+  x = c(sum(hombres$participa * hombres$fex_c, na.rm = TRUE),
+        sum(mujeres$participa * mujeres$fex_c, na.rm = TRUE)),
+  n = c(sum(hombres$fex_c, na.rm = TRUE),
+        sum(mujeres$fex_c, na.rm = TRUE))
+)
+
+```
