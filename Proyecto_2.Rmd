@@ -276,30 +276,51 @@ table(variables_etiquetas$P3271)
 prop.table(table(variables_etiquetas$P3271)) * 100
 
 # Gráfico
-ggplot(variables_etiquetas, aes(P3271, weight = fex_c)) +
-  geom_bar() +
-  theme_minimal() +
-  labs(title = "Distribución por género",
-       y = "Personas (expandido)",
-       x = "Género")
+ggplot(variables_etiquetas, aes(P3271, weight = fex_c, fill = P3271)) +
+  geom_bar(width = 0.6, alpha = 0.9) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_fill_manual(values = c("#4E79A7", "#F28E2B")) +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Distribución por género",
+    y = "Personas (expandido)",
+    x = "Género"
+  ) +
+  theme(legend.position = "none")
 
 ```
 
 
 ```{r Univariado}
+
 summary(variables_etiquetas$edad)
 
 ggplot(variables_etiquetas, aes(edad)) +
-  geom_histogram(bins = 40) +
-  theme_minimal() +
-  labs(title = "Distribución de la edad de la población",
-       x = "Edad",
-       y = "Frecuencia")
+  geom_histogram(
+    aes(y = ..density..),
+    bins = 40,
+    fill = "#4E79A7",
+    color = "white",
+    alpha = 0.75
+  ) +
+  geom_density(color = "red", size = 1, alpha = 0.7) +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Distribución de la edad de la población (con densidad)",
+    x = "Edad",
+    y = "Densidad"
+  )
 
-ggplot(variables_etiquetas, aes(y = edad)) +
-  geom_boxplot() +
-  theme_minimal() +
-  labs(title = "Boxplot de Edad")
+
+ggplot(variables_etiquetas, aes(x = "", y = edad)) +
+  geom_violin(fill = "#4E79A7", alpha = 0.7) +
+  stat_summary(fun = median, geom = "point", size = 3, color = "red") +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Distribución de la edad con mediana",
+    x = "",
+    y = "Edad"
+  )
 
 ```
 
@@ -320,30 +341,37 @@ ggplot(variables_etiquetas, aes(P3042, weight = fex_c)) +
 
 
 ```{r Univariado}
-table(variables_etiquetas$P6240)
-prop.table(table(variables_etiquetas$P6240)) * 100
+df_pct <- variables_etiquetas %>%
+  count(P3042, wt = fex_c) %>%
+  mutate(pct = n / sum(n) * 100)
 
-ggplot(variables_etiquetas, aes(P6240, weight = fex_c)) +
-  geom_bar() +
+ggplot(df_pct, aes(x = fct_reorder(P3042, pct), y = pct)) +
+  geom_col(fill = "#4A6FA5") +
   coord_flip() +
-  theme_minimal() +
-  labs(title = "Condición laboral declarada",
-       x = "Actividad",
-       y = "Personas (expandido)")
+  labs(
+    title = "Nivel educativo de la población",
+    x = "Nivel educativo",
+    y = "Porcentaje (%)"
+  ) +
+  theme_minimal(base_size = 13)
 
 ```
 
 
 ```{r Univariado}
-table(variables_etiquetas$estado_laboral)
-prop.table(table(variables_etiquetas$estado_laboral)) * 100
+df_lab <- variables_etiquetas %>%
+  count(P6240, wt = fex_c) %>%
+  mutate(pct = n / sum(n) * 100)
 
-ggplot(variables_etiquetas, aes(estado_laboral, weight = fex_c)) +
-  geom_bar() +
-  theme_minimal() +
-  labs(title = "Estado laboral (clasificación final)",
-       x = "Estado",
-       y = "Personas (expandido)")
+ggplot(df_lab, aes(x = fct_reorder(P6240, pct), y = pct)) +
+  geom_col(fill = "#4A6FA5") +
+  coord_flip() +
+  labs(
+    title = "Condición laboral declarada",
+    x = "Actividad",
+    y = "Porcentaje (%)"
+  ) +
+  theme_minimal(base_size = 13)
 
 ```
 
@@ -447,17 +475,16 @@ participacion_genero_region
 
 
 ```{r bivariado}
-ggplot(participacion_genero_region, aes(x = region, y = tasa, fill = P3271)) +
-  geom_col(position = "dodge") +
+ggplot(participacion_genero, aes(x = P3271, y = tasa_participacion, fill = P3271)) +
+  geom_col() +
   scale_y_continuous(labels = scales::percent) +
   theme_minimal() +
   labs(
-    title = "Tasa de participación laboral por género y región",
-    x = "Región",
-    y = "Tasa de participación",
-    fill = "Género"
-  ) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    title = "Tasa de participación laboral por género",
+    x = "Género",
+    y = "Tasa de participación"
+  )
+
 
 ```
 
@@ -486,3 +513,4 @@ prop.test(
 )
 
 ```
+
