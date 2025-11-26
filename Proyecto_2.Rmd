@@ -19,30 +19,18 @@ p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggpl
 # --- Definir rutas
 user <- Sys.getenv("USERNAME")
 
-if (user == "judel") {
-  path <- file.path(  "C:/Users", "judel", "OneDrive", "Documentos",
-  "ANDES", "Semestre 3", "Visualizacion de datos", "Proyecto 2",
-  "wetransfer_geih_2025-11-17_1556")
-} else if (user == "mvill") {
-  path <- file.path("C:/Users", "mvill", "OneDrive", "Transitorio", "OneDrive", 
-                    "Documentos", "GitHub", "Visualizaci-n-UniAndes","Taller 2")
-} else if (user == "hncar") {
-  path <- file.path("C:/Users", "hncar", "Documents", "GitHub", "Visualizaci-n-UniAndes", "Taller 2")
-} else {
-  path <- choose.dir(caption = "Selecciona la carpeta con los archivos")
-}
+# Obtener usuario del sistema y directorio de trabajo
+directorio <- dirname(rstudioapi::getSourceEditorContext()$path)
+setwd(directorio)
 
+# Buscar bases de datos
+ruta_datos <- file.path(directorio, "data/GEIH_2024")
 options(scipen = 999)  # desactiva notación científica
-
-
-setwd(path)
-
-ruta_datos <- file.path(path, "data/GEIH_2024")
 
 ```
 
 
-```{r Union bases}
+```{r Union bases, warning=FALSE}
 meses <- 1:12
 llave <- c("PERIODO", "MES", "PER", "DPTO", "DIRECTORIO", "SECUENCIA_P", "ORDEN", "FEX_C18")
 
@@ -60,7 +48,14 @@ for (m in meses) {
 
   for (i in seq_along(archivos)) {
     ruta <- file.path(ruta_datos, m, archivos[i])
-    datos <- read.csv(ruta, sep = ";", dec = ".", fileEncoding = "UTF-8", stringsAsFactors = FALSE)
+    #datos <- read.csv(ruta, sep = ";", dec = ".", fileEncoding = "UTF-8", stringsAsFactors = FALSE)
+    datos <- read_delim(
+      file   = ruta,
+      delim  = ";",
+      locale = locale(encoding = "Latin1"),
+      trim_ws = TRUE,
+      show_col_types = FALSE
+    )
     assign(nombres[i], datos)
   }
 
@@ -89,23 +84,24 @@ variables_select <- ANUAL %>%
   select(
     # Identificación
     PERIODO, MES, DIRECTORIO, SECUENCIA_P, ORDEN,
-
     # Sexo, edad
     P3271, P6040,
-
     # Educación
     P3042,
-
     # Mercado laboral
     P6240, P6240S1, P6240S2,
-    P6430,
-
+    P6430, OCI,OFICIO1_C8,
     # Ubicación
     DPTO, AREA.x, CLASE.x,
-
-    # Factor de expansión
+   # Factor de expansión
     FEX_C18
   )
+
+#Check de que está quedando bien
+factores_mes <- ANUAL %>%
+  group_by(MES) %>%
+  summarise(suma_fex = sum(as.numeric(FEX_C18)/12, na.rm = TRUE)) %>%
+  arrange(MES)
 
 ```
 
@@ -117,6 +113,8 @@ variables_select <- variables_select %>%
     ANO = format(PERIODO, "%Y")
   ) %>%
   select(-PERIODO)
+
+sapply(variables_select, function(x) sum(is.na(x)))
 ```
 
 
@@ -144,7 +142,7 @@ variables_etiquetas <- variables_etiquetas %>%
       P3042 == 12 ~ "Maestría",
       P3042 == 13 ~ "Doctorado",
       P3042 == 99 ~ "No sabe / No informa",
-      TRUE ~ "Otro / No especificado"
+      is.na(P3042) ~ "Otro / No especificado"
     ))
 
 variables_etiquetas <- variables_etiquetas %>%
@@ -156,7 +154,7 @@ variables_etiquetas <- variables_etiquetas %>%
       P6240 == 4 ~ "Oficios del hogar",
       P6240 == 5 ~ "Incapacitado permanente",
       P6240 == 6 ~ "Otra actividad",
-      TRUE ~ "Otro / No especificado"
+      is.na(P6240) ~ "Otro / No especificado"
     ))
 
 variables_etiquetas <- variables_etiquetas %>%
@@ -171,7 +169,7 @@ variables_etiquetas <- variables_etiquetas %>%
       P6430 == 7 ~ "No remunerado en negocio de otros hogares",
       P6430 == 8 ~ "Jornalero o peón",
       P6430 == 9 ~ "Otro",
-      TRUE ~ "Otro / No especificado"
+      is.na(P6430) ~ "Otro / No especificado"
     ))
 
 variables_etiquetas <- variables_etiquetas %>%
@@ -191,7 +189,7 @@ variables_etiquetas <- variables_etiquetas %>%
       P6240 %in% c("Estudiando", "Oficios del hogar",
                    "Incapacitado permanente", "Otra actividad") ~ "Inactivo",
       P6240 == 14 ~ "No especificado",
-      TRUE ~ "No clasificado"
+      is.na(P6240) ~ "No clasificado"
     )
   )
 
@@ -200,7 +198,7 @@ variables_etiquetas <- variables_etiquetas %>%
     participa = case_when(
       estado_laboral %in% c("Ocupado", "Desocupado") ~ 1,
       estado_laboral == "Inactivo" ~ 0,
-      TRUE ~ NA_real_
+      is.na(estado_laboral) ~ NA_real_
     )
   )
 
@@ -208,15 +206,14 @@ variables_etiquetas <- variables_etiquetas %>%
   mutate(
     region = case_when(
       DPTO %in% c(8, 13, 44, 47, 19, 70, 23) ~ "Caribe",
-      DPTO %in% c(5, 11, 15, 17, 18, 25, 41, 50, 52, 54, 68, 73, 76, 81, 85, 86, 91) ~ "Andina",
+      DPTO %in% c(5, 11, 15, 17, 18, 25, 41, 50, 54, 68, 73, 76, 81, 85, 86, 91) ~ "Andina",
       DPTO %in% c(52) ~ "Pacífico",
       DPTO %in% c(97, 99) ~ "Amazonía",
       DPTO %in% c(88) ~ "San Andrés",
-      TRUE ~ "Otras"
+      is.na(DPTO) ~ "Otras",
+      TRUE ~ "Otras"   # por si aparece un código no esperado
     )
   )
-
-
 ```
 
 
@@ -229,6 +226,7 @@ na_summary <- sapply(variables_etiquetas[vars_relevantes], function(x) {
 
 na_summary
 ```
+
 ```{r Outliers}
 Q1 <- quantile(variables_etiquetas$edad, 0.25)
 Q3 <- quantile(variables_etiquetas$edad, 0.75)
