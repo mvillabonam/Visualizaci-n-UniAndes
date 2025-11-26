@@ -205,17 +205,55 @@ variables_etiquetas <- variables_etiquetas %>%
 variables_etiquetas <- variables_etiquetas %>%
   mutate(
     region = case_when(
-      DPTO %in% c(8, 13, 44, 47, 19, 70, 23) ~ "Caribe",
-      DPTO %in% c(5, 11, 15, 17, 18, 25, 41, 50, 54, 68, 73, 76, 81, 85, 86, 91) ~ "Andina",
-      DPTO %in% c(52) ~ "Pacífico",
-      DPTO %in% c(97, 99) ~ "Amazonía",
-      DPTO %in% c(88) ~ "San Andrés",
-      is.na(DPTO) ~ "Otras",
-      TRUE ~ "Otras"   # por si aparece un código no esperado
+      # --- CARIBE ---
+      DPTO %in% c("08", "13", "20", "44", "47", "70", "23") ~ "Caribe",
+      # --- ANDINA ---
+      DPTO %in% c("05", "11", "15", "17", "41", "68", "73", "54",
+                  "25", "63", "66") ~ "Andina",
+      # --- PACÍFICO ---
+      DPTO %in% c("19", "27", "52", "76") ~ "Pacífico",
+      # --- ORINOQUÍA ---
+      DPTO %in% c("81", "85", "50") ~ "Orinoquía",
+      # --- AMAZONÍA ---
+      DPTO %in% c("91", "94", "95", "97", "99", "86") ~ "Amazonía",
+      # --- INSULAR ---
+      DPTO %in% c("88") ~ "Insular",
+      TRUE ~ NA_character_
     )
   )
-```
 
+variables_etiquetas <- variables_etiquetas %>%
+  mutate(
+    Departamento = case_when(
+      DPTO == "05" ~ "Antioquia",
+      DPTO == "08" ~ "Atlántico",
+      DPTO == "13" ~ "Bolívar",
+      DPTO == "15" ~ "Boyacá",
+      DPTO == "17" ~ "Caldas",
+      DPTO == "18" ~ "Caquetá",
+      DPTO == "19" ~ "Cauca",
+      DPTO == "20" ~ "Cesar",
+      DPTO == "23" ~ "Córdoba",
+      DPTO == "25" ~ "Cundinamarca",
+      DPTO == "27" ~ "Chocó",
+      DPTO == "41" ~ "Huila",
+      DPTO == "44" ~ "La Guajira",
+      DPTO == "47" ~ "Magdalena",
+      DPTO == "50" ~ "Meta",
+      DPTO == "52" ~ "Nariño",
+      DPTO == "54" ~ "Norte de Santander",
+      DPTO == "63" ~ "Quindío",
+      DPTO == "66" ~ "Risaralda",
+      DPTO == "68" ~ "Santander",
+      DPTO == "70" ~ "Sucre",
+      DPTO == "73" ~ "Tolima",
+      DPTO == "76" ~ "Valle del Cauca",
+      TRUE ~ NA_character_    # Diccionario de microdatos no incluye todos los numeros 
+    )
+  )
+
+
+```
 
 ```{r Na}
 vars_relevantes <- c("P3271","edad","P3042","P6240","P6430","DPTO","fex_c", "estado_laboral")
@@ -492,23 +530,86 @@ brecha_genero_region <- participacion_genero_region %>%
   select(region, P3271, tasa) %>%
   pivot_wider(names_from = P3271, values_from = tasa) %>%
   mutate(brecha = Hombre - Mujer)
-
 brecha_genero_region
 
+participacion_region_sexo <- variables_etiquetas %>%
+  filter(P3271 %in% c("Hombre", "Mujer"),
+         !is.na(region),
+         !is.na(participa),
+         !is.na(fex_c)) %>%
+  group_by(region, P3271) %>%
+  summarise(
+    tasa_participacion = sum(participa * fex_c, na.rm = TRUE) /
+                         sum(fex_c, na.rm = TRUE),
+    .groups = "drop"
+  )
+participacion_region_sexo
+
+# Gráfico conjunto por región
+ggplot(participacion_region_sexo,
+       aes(x = P3271, y = tasa_participacion, fill = P3271)) +
+  geom_col(width = 0.6) +
+  geom_text(
+    aes(label = scales::percent(tasa_participacion, accuracy = 0.1)),
+    vjust = -0.5,
+    size = 3
+  ) +
+  scale_y_continuous(
+    labels = percent_format(accuracy = 1),
+    limits = c(0, 1)
+  ) +
+  facet_wrap(~ region) +
+  labs(
+    title = "Tasa de participación laboral por sexo y región",
+    subtitle = "Proporciones ponderadas con el factor de expansión",
+    x = "",
+    y = "Tasa de participación",
+    fill = "Sexo"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "bottom"
+  )
 ```
 
+```{r}
+library(dplyr)
+library(purrr)
 
-```{r bivariado}
-# Muestras expandidas
-hombres <- variables_etiquetas %>% filter(P3271 == "Hombre")
-mujeres <- variables_etiquetas %>% filter(P3271 == "Mujer")
+# Aseguramos orden consistente Hombre / Mujer
+datos_test <- variables_etiquetas %>%
+  filter(P3271 %in% c("Hombre", "Mujer"),
+         !is.na(region),
+         !is.na(participa),
+         !is.na(fex_c)) %>%
+  group_by(region, P3271) %>%
+  summarise(
+    x = sum(participa * fex_c, na.rm = TRUE),  
+    n = sum(fex_c, na.rm = TRUE),            
+    .groups = "drop"
+  ) %>%
+  arrange(region, factor(P3271, levels = c("Hombre", "Mujer")))
 
-prop.test(
-  x = c(sum(hombres$participa * hombres$fex_c, na.rm = TRUE),
-        sum(mujeres$participa * mujeres$fex_c, na.rm = TRUE)),
-  n = c(sum(hombres$fex_c, na.rm = TRUE),
-        sum(mujeres$fex_c, na.rm = TRUE))
-)
+# Correr prop.test por región
+resultados_region <- datos_test %>%
+  group_by(region) %>%
+  summarise(
+    prueba = list(prop.test(x = x, n = n)),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    prop_h = map_dbl(prueba, ~ .x$estimate[1]),      # p_hombres
+    prop_m = map_dbl(prueba, ~ .x$estimate[2]),      # p_mujeres
+    dif_h_m = prop_h - prop_m,                       # brecha
+    p_value = map_dbl(prueba, ~ .x$p.value),
+    ic_inf = map_dbl(prueba, ~ .x$conf.int[1]),
+    ic_sup = map_dbl(prueba, ~ .x$conf.int[2])
+  ) %>%
+  select(region, prop_h, prop_m, dif_h_m, ic_inf, ic_sup, p_value)
+
+resultados_region
+write_xlsx(resultados_region, "resultados_region.xlsx")
+
 
 ```
 
