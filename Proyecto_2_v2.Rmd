@@ -122,6 +122,8 @@ variables_select <- ANUAL %>%
     P6440,
     #Verbal o escrito
     P6450,
+    
+    INGLABO,
    # Factor de expansión
     FEX_C18
   )
@@ -261,7 +263,7 @@ variables_etiquetas <- variables_select %>%
 ```
 
 ```{r Na}
-vars_relevantes <- c("P3271","edad","P3042","P6240","P6430","DPTO","fex_c", "estado_laboral","P6090","CLASE.x")
+vars_relevantes <- c("P3271","edad","P3042","P6240","P6430","DPTO","fex_c", "estado_laboral","P6090","CLASE.x","INGLABO")
 
 na_summary <- sapply(variables_etiquetas[vars_relevantes], function(x) {
   round(mean(is.na(x)) * 100, 2)
@@ -566,6 +568,23 @@ ggplot(participacion_rural_genero,
 ############################################################
 # Mini-gráficos: participación laboral por género y educación
 ############################################################
+niveles_edu <- c(
+  "Ninguno",
+  "Preescolar",
+  "Básica primaria (1-5)",
+  "Básica secundaria (6-9)",
+  "Media académica",
+  "Media técnica",
+  "Normalista",
+  "Técnica profesional",
+  "Tecnológica",
+  "Universitaria",
+  "Especialización",
+  "Maestría",
+  "Doctorado",
+  "No sabe / No informa",
+  "Otro / No especificado"
+)
 
 participacion_edu_genero <- variables_etiquetas %>%
   mutate(
@@ -742,3 +761,104 @@ ggplot(cond_gen, aes(x = pct, y = P6240, fill = P3271)) +
   )
 
 ```
+
+#Pruebas de Hipotesis
+
+```{r hipotesis}
+# Prueba diferencia de proporciones por género (participación)
+test_genero <- variables_etiquetas %>%
+  filter(P3271 %in% c("Hombre", "Mujer"), !is.na(participa)) %>%
+  group_by(P3271) %>%
+  summarise(
+    x = sum(participa * fex_c, na.rm = TRUE), # ocupación ponderada
+    n = sum(fex_c, na.rm = TRUE) # población expandida
+  )
+
+prop.test(x = test_genero$x, n = test_genero$n)
+
+
+```
+Se realizó una prueba de diferencia de proporciones para evaluar si existen diferencias en la participación laboral entre hombres y mujeres jefes de hogar. Los resultados indican que la tasa de participación laboral de los hombres (78.3%) es significativamente mayor que la de las mujeres (47.1%).
+
+Esta diferencia es estadísticamente significativa (χ²(1) = 22 616 556, p < 0.001). El intervalo de confianza al 95% para la brecha de participación se encuentra entre 31.26 y 31.28 puntos porcentuales, lo cual confirma que la desigualdad observada no se debe al azar.
+
+En consecuencia, se rechaza la hipótesis nula de igualdad y se concluye que el género es un factor determinante en la probabilidad de participar en el mercado laboral, incluso entre jefes de hogar.
+
+
+```{r hipotesis}
+library(purrr)
+library(broom)
+
+test_educacion <- variables_etiquetas %>%
+  filter(!is.na(P3042), P3271 %in% c("Hombre", "Mujer")) %>%
+  group_by(P3042, P3271) %>%
+  summarise(
+    x = sum(participa * fex_c, na.rm = TRUE),
+    n = sum(fex_c, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(P3042, factor(P3271, c("Hombre", "Mujer")))
+
+resultados_educ <- test_educacion %>%
+  group_by(P3042) %>%
+  summarise(
+    prueba = list(prop.test(x = x, n = n)),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    p_value = map_dbl(prueba, ~ .x$p.value)
+  )
+
+# Crear tabla con resultados tidy (p-value, estimaciones, ICs)
+tabla_educacion_resultados <- test_educacion %>%
+  group_by(P3042) %>%
+  summarise(
+    prueba = list(prop.test(x = x, n = n)),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    p_value = map_dbl(prueba, ~ .x$p.value),
+    prop_h = map_dbl(prueba, ~ .x$estimate[1]),
+    prop_m = map_dbl(prueba, ~ .x$estimate[2]),
+    dif = prop_h - prop_m,
+    IC_low = map_dbl(prueba, ~ .x$conf.int[1]),
+    IC_high = map_dbl(prueba, ~ .x$conf.int[2])
+  ) %>%
+  select(P3042, prop_h, prop_m, dif, IC_low, IC_high, p_value)
+
+options(width = 300)
+tabla_educacion_resultados
+
+
+```
+En los niveles educativos intermedios y superiores (preescolar, técnica, tecnológica y universitaria), la participación laboral de las mujeres jefes de hogar sigue siendo significativamente menor que la de los hombres. Aunque la brecha empieza a reducirse conforme aumenta el nivel educativo, no desaparece completamente en educación universitaria. Esto sugiere que la formación académica contribuye a mitigar, pero no elimina, las barreras de género en el acceso al mercado laboral.
+
+
+```{r hipotesis}
+test_zona <- variables_etiquetas %>%
+  filter(CLASE.x %in% c("Urbano", "Rural"), P3271 %in% c("Hombre", "Mujer")) %>%
+  group_by(CLASE.x, P3271) %>%
+  summarise(
+    x = sum(participa * fex_c, na.rm = TRUE),
+    n = sum(fex_c, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(CLASE.x, factor(P3271, c("Hombre", "Mujer")))
+
+resultados_zona <- test_zona %>%
+  group_by(CLASE.x) %>%
+  summarise(
+    prueba = list(prop.test(x = x, n = n)),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    p_value = map_dbl(prueba, ~ .x$p.value)
+  )
+
+resultados_zona
+
+
+```
+
+Al segmentar la participación laboral por zona (urbano y rural), se encuentra una diferencia estadísticamente significativa entre hombres y mujeres jefes de hogar (p < 0.001 en ambos casos). Esto indica que, independientemente del contexto territorial, la probabilidad de participar en el mercado laboral es mayor para los hombres. Por lo tanto, la desigualdad de género en participación laboral es una condición estructural, que no depende únicamente de si el hogar se ubica en zona urbana o rural.
+
