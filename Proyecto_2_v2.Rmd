@@ -1,0 +1,744 @@
+---
+title: "Proyecto 2 - Visualización y Exploración de bases de datos"
+author: " Henry Carvajal (201718787),Julian Delgado (201712798) , Mariana Villabona (201816559)"
+date: "Visualización y Exploración de datos para ciencias sociales"
+output: html_document
+---
+```{r Setup}
+
+# --- Limpiar entorno
+rm(list = ls())
+gc()
+closeAllConnections()
+
+# --- Cargar librerías necesarias
+library("pacman")
+require("pacman")
+p_load( tidyverse, data.table, lubridate, readxl, ggthemes, plotly, janitor,ggplot2,openxlsx, writexl,stringi, patchwork, skimr,tidyverse, readxl, ggthemes, plotly,sf,osmdata,dplyr, scales)
+
+# --- Definir rutas
+user <- Sys.getenv("USERNAME")
+
+# Obtener usuario del sistema y directorio de trabajo
+
+# --- Definir rutas
+user <- Sys.getenv("USERNAME")
+
+if (user == "judel") {
+  directorio <- file.path(  "C:/Users", "judel", "OneDrive", "Documentos",
+  "ANDES", "Semestre 3", "Visualizacion de datos", "Proyecto 2",
+  "wetransfer_geih_2025-11-17_1556")
+} else if (user == "mvill") {
+  directorio <- file.directorio("C:/Users", "mvill", "OneDrive", "Transitorio", "OneDrive", 
+                    "Documentos", "GitHub", "Visualizaci-n-UniAndes","Taller 2")
+} else if (user == "hncar") {
+  directorio <- file.directorio("C:/Users", "hncar", "Documents", "GitHub", "Visualizaci-n-UniAndes", "Taller 2")
+} else {
+  directorio <- choose.dir(caption = "Selecciona la carpeta con los archivos")
+}
+
+setwd(directorio)
+
+# Buscar bases de datos
+ruta_datos <- file.path(directorio, "data/GEIH_2024")
+options(scipen = 999)  # desactiva notación científica
+
+```
+
+
+```{r Union bases, warning=FALSE}
+meses <- 1:12
+llave <- c("PERIODO", "MES", "PER", "DPTO", "DIRECTORIO", "SECUENCIA_P", "ORDEN", "FEX_C18")
+
+lista_meses <- list()
+
+for (m in meses) {
+
+  archivos <- c(
+    "Características generales, seguridad social en salud y educación.csv",
+    "Fuerza de trabajo.csv",
+    "No ocupados.csv",
+    "Ocupados.csv"
+  )
+  nombres <- c("generales", "fuerza", "desocupados", "ocupados")
+
+  for (i in seq_along(archivos)) {
+    ruta <- file.path(ruta_datos, m, archivos[i])
+    #datos <- read.csv(ruta, sep = ";", dec = ".", fileEncoding = "UTF-8", stringsAsFactors = FALSE)
+    datos <- read_delim(
+      file   = ruta,
+      delim  = ";",
+      locale = locale(encoding = "Latin1"),
+      trim_ws = TRUE,
+      show_col_types = FALSE
+    )
+    assign(nombres[i], datos)
+  }
+
+  base_mes <- generales %>%
+    left_join(fuerza, by = llave) %>%
+    left_join(ocupados, by = llave) %>%
+    left_join(desocupados, by = llave)
+
+  lista_meses[[m]] <- base_mes
+}
+
+# Limpieza de formatos
+lista_meses <- lapply(lista_meses, function(df) {
+  df %>% mutate(OFICIO_C8 = as.character(OFICIO_C8),
+                MES = as.character(MES))
+})
+
+ANUAL <- bind_rows(lista_meses)
+
+rm(base_mes, generales, fuerza, ocupados, desocupados, datos)
+```
+
+
+```{r Seleccionar variables relevantes}
+variables_select <- ANUAL %>%
+  select(
+    # Identificación
+    PERIODO, MES, DIRECTORIO, SECUENCIA_P, ORDEN,
+    # Sexo, edad
+    P3271, P6040,
+    #Parentesco jefe de hogar
+    P6050,
+    # Educación
+    P3042,
+    # Mercado laboral
+    P6240, P6240S1, P6240S2,
+    P6430, OCI,OFICIO1_C8,
+    # Ubicación
+    DPTO, AREA.x, CLASE.x,
+    
+    #Afiliado a salud
+    P6090,
+    
+    #Fondos de pensiones
+    P6920,
+    
+    #Tiene contrato laboral
+    P6440,
+    #Verbal o escrito
+    P6450,
+   # Factor de expansión
+    FEX_C18
+  )
+
+#Check de que está quedando bien
+factores_mes <- ANUAL %>%
+  group_by(MES) %>%
+  summarise(suma_fex = sum(as.numeric(FEX_C18)/12, na.rm = TRUE)) %>%
+  arrange(MES)
+
+```
+
+
+```{r Seleccionar variables relevantes}
+variables_select <- variables_select %>%
+  mutate(
+    PERIODO = as.Date(as.character(PERIODO), format = "%Y%m%d"),
+    ANO = format(PERIODO, "%Y")
+  ) %>%
+  select(-PERIODO)
+
+variables_select <- variables_select %>%
+  mutate(
+    fex_c = as.numeric(FEX_C18),
+    edad = as.numeric(P6040),
+    P6050 = as.numeric(P6050)
+  )
+
+variables_select <- variables_select %>%
+  filter(edad >= 18)
+
+#Filtrar registros por si son jefe de hogar
+variables_select <- variables_select %>%
+  filter(P6050 == 1)
+
+sapply(variables_select, function(x) sum(is.na(x)))
+```
+
+
+```{r Ajustar Variables}
+variables_etiquetas <- variables_select %>%
+  mutate(
+    # Sexo
+    P3271 = case_when(
+      P3271 == 1 ~ "Hombre",
+      P3271 == 2 ~ "Mujer",
+      TRUE ~ NA_character_
+    ),
+    
+    # Urbano / rural
+    CLASE.x = case_when(
+      CLASE.x == 1 ~ "Urbano",
+      CLASE.x == 2 ~ "Rural",
+      TRUE ~ NA_character_
+    ),
+    
+    # Salud
+    P6090 = case_when(
+      P6090 == 1 ~ "Protegido por el sistema de salud",
+      P6090 == 2 ~ "No está protegido",
+      P6090 == 9 ~ "No sabe",
+      TRUE ~ NA_character_
+    ),
+    
+    # Nivel educativo
+    P3042 = case_when(
+      P3042 == 1  ~ "Ninguno",
+      P3042 == 2  ~ "Preescolar",
+      P3042 == 3  ~ "Básica primaria (1-5)",
+      P3042 == 4  ~ "Básica secundaria (6-9)",
+      P3042 == 5  ~ "Media académica",
+      P3042 == 6  ~ "Media técnica",
+      P3042 == 7  ~ "Normalista",
+      P3042 == 8  ~ "Técnica profesional",
+      P3042 == 9  ~ "Tecnológica",
+      P3042 == 10 ~ "Universitaria",
+      P3042 == 11 ~ "Especialización",
+      P3042 == 12 ~ "Maestría",
+      P3042 == 13 ~ "Doctorado",
+      P3042 == 99 ~ "No sabe / No informa",
+      TRUE ~ "Otro / No especificado"
+    ),
+    
+    # Actividad declarada
+    P6240 = case_when(
+      P6240 == 1 ~ "Trabajando",
+      P6240 == 2 ~ "Buscando trabajo",
+      P6240 == 3 ~ "Estudiando",
+      P6240 == 4 ~ "Oficios del hogar",
+      P6240 == 5 ~ "Incapacitado permanente",
+      P6240 == 6 ~ "Otra actividad",
+      TRUE ~ "Otro / No especificado"
+    ),
+    
+    # Ocupación / categoría
+    P6430 = case_when(
+      P6430 == 1 ~ "Obrero o empleado empresa privada",
+      P6430 == 2 ~ "Obrero o empleado gobierno",
+      P6430 == 3 ~ "Empleado doméstico",
+      P6430 == 4 ~ "Cuenta propia",
+      P6430 == 5 ~ "Patrón o empleador",
+      P6430 == 6 ~ "Familiar sin remuneración",
+      P6430 == 7 ~ "No remunerado en negocio de otros hogares",
+      P6430 == 8 ~ "Jornalero o peón",
+      P6430 == 9 ~ "Otro",
+      TRUE ~ "Otro / No especificado"
+    ),
+    
+    # Estado laboral
+    estado_laboral = case_when(
+      P6240 == "Trabajando" ~ "Ocupado",
+      P6240 == "Buscando trabajo" ~ "Desocupado",
+      P6240 %in% c("Estudiando", "Oficios del hogar",
+                   "Incapacitado permanente", "Otra actividad") ~ "Inactivo",
+      TRUE ~ "No clasificado"
+    ),
+    
+    # Participación
+    participa = case_when(
+      estado_laboral %in% c("Ocupado", "Desocupado") ~ 1,
+      estado_laboral == "Inactivo" ~ 0,
+      TRUE ~ NA_real_
+    ),
+    
+    # Regiones
+    region = case_when(
+      DPTO %in% c("08", "13", "20", "44", "47", "70", "23") ~ "Caribe",
+      DPTO %in% c("05", "11", "15", "17", "41", "68", "73", "54", "25", "63", "66") ~ "Andina",
+      DPTO %in% c("19", "27", "52", "76") ~ "Pacífico",
+      DPTO %in% c("81", "85", "50") ~ "Orinoquía",
+      DPTO %in% c("91", "94", "95", "97", "99", "86") ~ "Amazonía",
+      DPTO == "88" ~ "Insular",
+      TRUE ~ NA_character_
+    )
+  )
+
+```
+
+```{r Na}
+vars_relevantes <- c("P3271","edad","P3042","P6240","P6430","DPTO","fex_c", "estado_laboral","P6090","CLASE.x")
+
+na_summary <- sapply(variables_etiquetas[vars_relevantes], function(x) {
+  round(mean(is.na(x)) * 100, 2)
+})
+
+na_summary
+```
+
+```{r Outliers}
+Q1 <- quantile(variables_etiquetas$edad, 0.25)
+Q3 <- quantile(variables_etiquetas$edad, 0.75)
+IQR <- Q3 - Q1
+lim_inf <- Q1 - 1.5*IQR
+lim_sup <- Q3 + 1.5*IQR
+
+sum(variables_etiquetas$edad < lim_inf | variables_etiquetas$edad > lim_sup)
+
+```
+Para identificar posibles valores atípicos en la variable edad, se aplicó el criterio estadístico basado en el rango intercuartílico (IQR). Se calcularon los límites inferior y superior como Q1 − 1.5·IQR y Q3 + 1.5·IQR, respectivamente. A partir de este procedimiento se identificaron 9 observaciones con edades entre 103 y 108 años.
+
+Tras revisar manualmente estos registros, se concluyó que, aunque poco frecuentes, estas edades son plausibles en una encuesta poblacional como la GEIH. Por lo tanto, no se consideraron errores ni valores imposibles, y se decidió conservarlos en la base de datos, evitando introducir un sesgo por eliminación injustificada de adultos mayores. Esta decisión no afecta de manera significativa los análisis posteriores, dado su bajo peso relativo en la muestra.
+
+```{r Outliers}
+outliers_edad <- variables_etiquetas %>%
+  filter(edad < lim_inf | edad > lim_sup) %>%
+  select(DIRECTORIO, SECUENCIA_P, ORDEN, edad)
+
+outliers_edad
+
+
+```
+
+```{r }
+summary(variables_etiquetas$edad)
+
+table(variables_etiquetas$P3271)
+prop.table(table(variables_etiquetas$P3271)) * 100
+
+table(variables_etiquetas$estado_laboral)
+prop.table(table(variables_etiquetas$estado_laboral)) * 100
+
+table(variables_etiquetas$P3042)
+
+table(variables_etiquetas$DPTO)
+```
+
+
+```{r Univariado}
+# Frecuencia
+table(variables_etiquetas$P3271)
+
+# Porcentajes
+prop.table(table(variables_etiquetas$P3271)) * 100
+
+# Gráfico
+ggplot(variables_etiquetas, aes(P3271, weight = fex_c, fill = P3271)) +
+  geom_bar(width = 0.6, alpha = 0.9) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_fill_manual(values = c("#4E79A7", "#F28E2B")) +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Distribución por género de Jefes de Hogar",
+    y = "Personas (expandido)",
+    x = "Género"
+  ) +
+  theme(legend.position = "none")
+
+```
+
+
+```{r Univariado}
+
+summary(variables_etiquetas$edad)
+
+ggplot(variables_etiquetas, aes(edad)) +
+  geom_histogram(
+    aes(y = ..density..),
+    bins = 40,
+    fill = "#4E79A7",
+    color = "white",
+    alpha = 0.75
+  ) +
+  geom_density(color = "red", size = 1, alpha = 0.7) +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Distribución de la edad de la población (con densidad)",
+    x = "Edad",
+    y = "Densidad"
+  )
+
+
+ggplot(variables_etiquetas, aes(x = "", y = edad)) +
+  geom_violin(fill = "#4E79A7", alpha = 0.7) +
+  stat_summary(fun = median, geom = "point", size = 3, color = "red") +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Distribución de la edad con mediana",
+    x = "",
+    y = "Edad"
+  )
+
+```
+
+```{r Univariado}
+df_pct <- variables_etiquetas %>%
+  count(P3042, wt = fex_c) %>%
+  mutate(pct = n / sum(n) * 100)
+
+ggplot(df_pct, aes(x = fct_reorder(P3042, pct), y = pct)) +
+  geom_col(fill = "#4A6FA5") +
+  coord_flip() +
+  labs(
+    title = "Nivel educativo de la población",
+    x = "Nivel educativo",
+    y = "Porcentaje (%)"
+  ) +
+  theme_minimal(base_size = 13)
+
+```
+
+
+```{r Univariado}
+df_lab <- variables_etiquetas %>%
+  count(P6240, wt = fex_c) %>%
+  mutate(pct = n / sum(n) * 100)
+
+ggplot(df_lab, aes(x = fct_reorder(P6240, pct), y = pct)) +
+  geom_col(fill = "#4A6FA5") +
+  coord_flip() +
+  labs(
+    title = "Condición laboral declarada",
+    x = "Actividad",
+    y = "Porcentaje (%)"
+  ) +
+  theme_minimal(base_size = 13)
+
+```
+
+```{r Univariado}
+# Cálculo de porcentajes (expandido)
+salud_dist <- variables_etiquetas %>%
+  group_by(P6090) %>%
+  summarise(
+    total = sum(fex_c, na.rm = TRUE)
+  ) %>%
+  mutate(porc = total / sum(total))
+
+# Gráfico mejorado
+ggplot(salud_dist, aes(x = P6090, y = total, fill = P6090)) +
+  geom_col(width = 0.65, show.legend = FALSE) +
+  
+  geom_text(aes(label = scales::percent(porc, accuracy = 0.1)),
+            vjust = -0.5, size = 5, fontface = "bold") +
+  
+  scale_fill_manual(values = c(
+    "Protegido por el sistema de salud" = "#6BAED6",
+    "No está protegido" = "#FD8D3C",
+    "No sabe" = "#969696"
+  )) +
+  
+  scale_y_continuous(labels = scales::comma,
+                     expand = expansion(mult = c(0, 0.15))) +
+  
+  labs(
+    title = "Distribución del estado de protección en salud del Jefe de Hogar",
+    x = "Cobertura en salud",
+    y = "Personas (expandido)"
+  ) +
+  
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.text.x = element_text(angle = 15, hjust = 1, size = 12)
+  )
+
+```
+
+
+
+
+```{r Univariado}
+# Totales ponderados por zona
+dist_zona <- variables_etiquetas %>%
+  group_by(CLASE.x) %>%
+  summarise(total = sum(fex_c, na.rm = TRUE)) %>%
+  mutate(porc = total / sum(total))
+
+# Gráfico mejorado
+ggplot(dist_zona, aes(x = factor(CLASE.x, levels = c("Urbano", "Rural")),
+                      y = porc,
+                      fill = CLASE.x)) +
+  geom_col(width = 0.6, alpha = 0.85) +
+  geom_text(aes(label = scales::percent(porc, accuracy = 0.1)),
+            vjust = -0.5,
+            size = 5) +
+  scale_y_continuous(labels = percent_format(accuracy = 1),
+                     limits = c(0, 1)) +
+  scale_fill_manual(values = c("Urbano" = "#4E79A7", "Rural" = "#F28E2B")) +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "Distribución porcentual de la población por zona (Urbano / Rural)",
+    x = "Zona",
+    y = "Porcentaje de la población"
+  ) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold", size = 16),
+    axis.title.y = element_text(size = 13),
+    axis.title.x = element_text(size = 13)
+  )
+```
+
+
+```{r bivariado}
+participacion_genero <- variables_etiquetas %>%
+  group_by(P3271) %>%
+  summarise(
+    tasa_participacion = weighted.mean(participa, w = fex_c, na.rm = TRUE)
+  )
+
+participacion_genero
+
+```
+
+
+```{r bivariado}
+ggplot(participacion_genero, aes(x = P3271, y = tasa_participacion, fill = P3271)) +
+  geom_col(width = 0.6) +
+  geom_text(
+    aes(label = scales::percent(tasa_participacion, accuracy = 0.1)),
+    vjust = -0.5,
+    size = 4.5
+  ) +
+  scale_y_continuous(labels = scales::percent, expand = expansion(mult = c(0, 0.1))) +
+  scale_fill_manual(values = c("Hombre" = "#4E79A7", "Mujer" = "#F28E2B")) +
+  labs(
+    title = "Tasa de participación laboral por género de Jefes de Hogar",
+    x = "Género",
+    y = "Tasa de participación"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.title.x = element_text(face = "bold"),
+    axis.title.y = element_text(face = "bold")
+  )
+
+
+```
+
+
+```{r bivariado}
+
+salud_genero <- variables_etiquetas %>%
+  group_by(P3271, P6090) %>%
+  summarise(
+    total = sum(fex_c, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(salud_genero, aes(x = P3271, y = total, fill = P6090)) +
+  geom_col(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Cobertura en salud por género",
+    x = "Género",
+    y = "Porcentaje",
+    fill = "Cobertura salud"
+  ) +
+  theme_minimal()
+
+```
+```{r bivariado}
+participacion_rural_genero <- variables_etiquetas %>%
+  filter(CLASE.x == "Rural") %>%
+  group_by(P3271) %>%
+  summarise(
+    tasa_participacion = weighted.mean(participa, w = fex_c, na.rm = TRUE)
+  )
+
+ggplot(participacion_rural_genero,
+       aes(x = P3271, y = tasa_participacion, fill = P3271)) +
+  geom_col(width = 0.6, alpha = 0.9) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  scale_fill_manual(values = c("Hombre" = "#4E79A7", "Mujer" = "#F28E2B")) +
+  labs(
+    title = "Tasa de participación laboral por género en zona rural",
+    x = "Género",
+    y = "Tasa de participación"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold")
+  )
+
+
+```
+
+```{r bivariado}
+############################################################
+# Mini-gráficos: participación laboral por género y educación
+############################################################
+
+participacion_edu_genero <- variables_etiquetas %>%
+  mutate(
+    P3042 = factor(P3042, levels = niveles_edu)
+  ) %>%
+  filter(!is.na(participa)) %>%
+  group_by(P3042, P3271) %>%
+  summarise(
+    tasa_participacion = weighted.mean(participa, w = fex_c, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(participacion_edu_genero,
+       aes(x = P3271, y = tasa_participacion, fill = P3271)) +
+  geom_col(width = 0.65) +
+  geom_text(aes(label = scales::percent(tasa_participacion, accuracy = 0.1)),
+            vjust = -0.5, size = 4, fontface = "bold") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1),
+                     limits = c(0,1),
+                     expand = expansion(mult = c(0,0.15))) +
+  scale_fill_manual(values = c("Hombre" = "#4E79A7", "Mujer" = "#F28E2B")) +
+  labs(
+    title = "Tasa de participación laboral por género y nivel educativo",
+    x = "",
+    y = "Tasa de participación",
+    fill = "Género"
+  ) +
+  facet_wrap(~ P3042, ncol = 4) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 15),
+    axis.text.x = element_text(angle = 0),
+    strip.text = element_text(face = "bold", size = 10),
+    legend.position = "bottom"
+  )
+
+
+```
+
+```{r bivariado}
+############################################################
+# Participación laboral por género según zona (Rural/Urbano)
+############################################################
+
+# Cálculo rural
+participacion_rural <- variables_etiquetas %>%
+  filter(CLASE.x == "Rural") %>%
+  group_by(P3271) %>%
+  summarise(
+    tasa_participacion = weighted.mean(participa, w = fex_c, na.rm = TRUE)
+  )
+
+# Gráfico rural
+g_rural <- ggplot(participacion_rural,
+       aes(x = P3271, y = tasa_participacion, fill = P3271)) +
+  geom_col(width = 0.6, alpha = 0.9) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  scale_fill_manual(values = c("Hombre" = "#4E79A7", "Mujer" = "#F28E2B")) +
+  labs(
+    title = "Tasa de participación laboral por género en zona rural",
+    x = "Género",
+    y = "Tasa de participación"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold")
+  )
+
+# Cálculo urbano
+participacion_urbana <- variables_etiquetas %>%
+  filter(CLASE.x == "Urbano") %>%
+  group_by(P3271) %>%
+  summarise(
+    tasa_participacion = weighted.mean(participa, w = fex_c, na.rm = TRUE)
+  )
+
+# Gráfico urbano
+g_urbano <- ggplot(participacion_urbana,
+       aes(x = P3271, y = tasa_participacion, fill = P3271)) +
+  geom_col(width = 0.6, alpha = 0.9) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  scale_fill_manual(values = c("Hombre" = "#4E79A7", "Mujer" = "#F28E2B")) +
+  labs(
+    title = "Tasa de participación laboral por género en zona urbana",
+    x = "Género",
+    y = "Tasa de participación"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold")
+  )
+
+# Panel urbano vs rural
+participacion_panel <- variables_etiquetas %>%
+  group_by(CLASE.x, P3271) %>%
+  summarise(
+    tasa_participacion = weighted.mean(participa, w = fex_c, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+g_panel <- ggplot(participacion_panel,
+       aes(x = P3271, y = tasa_participacion, fill = P3271)) +
+  geom_col(width = 0.6, alpha = 0.9) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  scale_fill_manual(values = c("Hombre" = "#4E79A7", "Mujer" = "#F28E2B")) +
+  labs(
+    title = "Tasa de participación laboral por género según zona",
+    x = "Género",
+    y = "Tasa de participación"
+  ) +
+  facet_wrap(~ CLASE.x) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold")
+  )
+
+# Mostrar panel final
+g_panel
+
+
+```
+
+
+```{r bivariado}
+############################################################
+# Condición laboral declarada según género (mejorado)
+############################################################
+
+# Cálculo ponderado por género
+cond_gen <- variables_etiquetas %>%
+  filter(!is.na(P6240), !is.na(P3271)) %>%
+  group_by(P6240, P3271) %>%
+  summarise(total = sum(fex_c, na.rm = TRUE), .groups = "drop") %>%
+  group_by(P3271) %>%
+  mutate(pct = total / sum(total))
+
+# Ordenar según el total conjunto (hombre+mujer)
+orden_act <- cond_gen %>%
+  group_by(P6240) %>%
+  summarise(total_sum = sum(total)) %>%
+  arrange(desc(total_sum)) %>%
+  pull(P6240)
+
+cond_gen <- cond_gen %>%
+  mutate(P6240 = factor(P6240, levels = rev(orden_act)))
+
+# Gráfico mejorado
+ggplot(cond_gen, aes(x = pct, y = P6240, fill = P3271)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.75) +
+  geom_text(
+    aes(label = scales::percent(pct, accuracy = 0.1)),
+    position = position_dodge(width = 0.8),
+    hjust = -0.15,
+    size = 3.5,
+    fontface = "bold"
+  ) +
+  scale_x_continuous(labels = scales::percent,
+                     limits = c(0, max(cond_gen$pct) * 1.25)) +
+  scale_fill_manual(values = c("Hombre" = "#4575B4", "Mujer" = "#F28E2B"),
+                    name = "Género") +
+  labs(
+    title = "Condición laboral declarada según género",
+    x = "Porcentaje del total",
+    y = "Actividad declarada"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title   = element_text(face = "bold", hjust = 0.5, size = 15),
+    axis.title   = element_text(face = "bold"),
+    legend.position = "bottom"
+  )
+
+```
