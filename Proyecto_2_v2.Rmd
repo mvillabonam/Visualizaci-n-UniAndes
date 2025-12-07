@@ -5,7 +5,6 @@ date: "Visualización y Exploración de datos para ciencias sociales"
 output: html_document
 ---
 ```{r Setup}
-
 # --- Limpiar entorno
 rm(list = ls())
 gc()
@@ -22,21 +21,7 @@ user <- Sys.getenv("USERNAME")
 # Obtener usuario del sistema y directorio de trabajo
 
 # --- Definir rutas
-user <- Sys.getenv("USERNAME")
-
-if (user == "judel") {
-  directorio <- file.path(  "C:/Users", "judel", "OneDrive", "Documentos",
-  "ANDES", "Semestre 3", "Visualizacion de datos", "Proyecto 2",
-  "wetransfer_geih_2025-11-17_1556")
-} else if (user == "mvill") {
-  directorio <- file.directorio("C:/Users", "mvill", "OneDrive", "Transitorio", "OneDrive", 
-                    "Documentos", "GitHub", "Visualizaci-n-UniAndes","Taller 2")
-} else if (user == "hncar") {
-  directorio <- file.directorio("C:/Users", "hncar", "Documents", "GitHub", "Visualizaci-n-UniAndes", "Taller 2")
-} else {
-  directorio <- choose.dir(caption = "Selecciona la carpeta con los archivos")
-}
-
+directorio <- setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 setwd(directorio)
 
 # Buscar bases de datos
@@ -44,7 +29,6 @@ ruta_datos <- file.path(directorio, "data/GEIH_2024")
 options(scipen = 999)  # desactiva notación científica
 
 ```
-
 
 ```{r Union bases, warning=FALSE}
 meses <- 1:12
@@ -94,7 +78,6 @@ ANUAL <- bind_rows(lista_meses)
 rm(base_mes, generales, fuerza, ocupados, desocupados, datos)
 ```
 
-
 ```{r Seleccionar variables relevantes}
 variables_select <- ANUAL %>%
   select(
@@ -104,26 +87,64 @@ variables_select <- ANUAL %>%
     P3271, P6040,
     #Parentesco jefe de hogar
     P6050,
+    #Madre reside en el hogar  (#1 es sí)
+    P6083, 
+    # Padre reside en el hoagar
+    P6081,
+    # Considerarse campesino 
+    P2057, 
+    # Estado civil
+    P6070, 
+    # Residir con el conyugue 
+    P6071, 
     # Educación
     P3042,
+    # Institucion educativa (Privada o Pública)
+    P3041,
+    # No heterosexual
+    P3038,
     # Mercado laboral
     P6240, P6240S1, P6240S2,
     P6430, OCI,OFICIO1_C8,
     # Ubicación
     DPTO, AREA.x, CLASE.x,
-    
     #Afiliado a salud
     P6090,
-    
     #Fondos de pensiones
     P6920,
-    
     #Tiene contrato laboral
     P6440,
     #Verbal o escrito
     P6450,
-    
+    #Ingresos laborales
     INGLABO,
+    # Ingresos por horaas extras
+    P6510,
+    # Ingresos por subsidios familiares,
+    P6585S3,
+    # Razón trabajo cómo independiente, 
+    # (7 es 7	Trabaja en un negocio familiar, 4	Horario de trabajo más flexible,
+    # 9	Por tradición familiar, 1	No encontró trabajo como asalariado)
+    P1879,
+    # Posibilidad de ser asalariada vs independiente (1 es Sí)
+    P1805, 
+    # Trabajar menos de 40 horas
+    P6810, 
+    # Horas a la semana trabajadas
+    P6800, 
+    # Empleo anterior ( 6 es era trabajador familiar)
+    P7028,
+    # Razón para dejar el empleo anterior (9 es Renunció por razones personales (matrimonio, embarazo,            
+    # responsabilidades familiares))
+    P1880,
+    # Razón para dejar el trabajo son razones familiares (3 Responsabilidades familiares)
+    P7450, 
+    # No ocupadas, tiempo de trabajo por última vez en semanas 
+    P7440S2,
+    # Fuerza de trabajo dedicarse a oficios del hogar  (4)
+    P6240,
+    # Meses que dej+o de buscar trabajo 
+    P6350,
    # Factor de expansión
     FEX_C18
   )
@@ -131,40 +152,90 @@ variables_select <- ANUAL %>%
 #Check de que está quedando bien
 factores_mes <- ANUAL %>%
   group_by(MES) %>%
-  summarise(suma_fex = sum(as.numeric(FEX_C18)/12, na.rm = TRUE)) %>%
+  summarise(suma_fex = sum(as.numeric(FEX_C18), na.rm = TRUE)) %>%
   arrange(MES)
+factores_mes
+rm(factores_mes)
 
+summary(variables_select)
 ```
 
-
-```{r Seleccionar variables relevantes}
+```{r Crear nuevas variables}
 variables_select <- variables_select %>%
+  
+  # 1. Filtrar mujeres en edad laboral (P3271 = 2, edad >=15)
+  filter(P3271 == 2, P6040 >= 15) %>%
+  
   mutate(
-    PERIODO = as.Date(as.character(PERIODO), format = "%Y%m%d"),
-    ANO = format(PERIODO, "%Y")
-  ) %>%
-  select(-PERIODO)
 
-variables_select <- variables_select %>%
-  mutate(
-    fex_c = as.numeric(FEX_C18),
-    edad = as.numeric(P6040),
-    P6050 = as.numeric(P6050)
+    # 2. VARIABLE DEPENDIENTE: Ocupación
+    ocupada = case_when(
+      OCI == 1 ~ 1,  # Ocupada
+      P6240 %in% c(2,3,4) ~ 0,            # No ocupada
+      TRUE ~ NA_real_
+    ),
+    
+    # 3. NIVEL EDUCATIVO (P3042) → ordinal simplificado
+    educ = case_when(
+      P3042 %in% c(1,2) ~ "Sin educación",
+      P3042 %in% c(3,4) ~ "Primaria",
+      P3042 %in% c(5,6) ~ "Secundaria",
+      P3042 == 7 ~ "Media",
+      P3042 %in% c(8,9) ~ "Técnica/Tecnológica",
+      P3042 %in% c(10,11,12) ~ "Profesional+",
+      TRUE ~ NA_character_
+    ),
+    educ = factor(educ, levels = c(
+      "Sin educación","Primaria","Secundaria",
+      "Media","Técnica/Tecnológica","Profesional+"
+    )),
+    
+    # 4. CARACTERÍSTICAS FAMILIARES (controles principales)
+    vive_con_pareja = ifelse(P6071 == 1, 1, 0),
+    madre_en_hogar = ifelse(P6083 == 1, 1, 0),
+    padre_en_hogar = ifelse(P6081 == 1, 1, 0),
+
+    # Jefatura del hogar
+    jefa_hogar = ifelse(P6050 == 1, 1, 0),
+    
+    # Estado civil simplificado
+    estado_civil = case_when(
+      P6070 %in% c(2,3) ~ "Unida",
+      P6070 %in% c(1,4,5) ~ "No unida",
+      TRUE ~ NA_character_
+    ),
+    
+    # 5. FORMALIDAD: contrato, tipo de contrato, afiliación
+    tiene_contrato = ifelse(P6440 == 1, 1, 0),
+    contrato_escrito = ifelse(P6450 == 1, 1, 0),
+    afiliada_salud = ifelse(P6090 == 1, 1, 0),
+    
+    # 6. INGRESOS Y HORAS
+    ingresos = INGLABO,
+    horas_semana = P6800,
+    trabaja_menos_40 = ifelse(P6810 == 1, 1, 0),
+    
+    # 7. CONDICIÓN DE INDEPENDENCIA / RAZONES FAMILIARES
+    independiente_si = ifelse(P1805 == 1, 1, 0),      # posibilidad de ser independiente
+    razon_independiente_familiar = ifelse(
+      P1879 %in% c(7,4,9,1), 1, 0
+    ),
+    
+    # Razones familiares para dejar empleo anterior
+    dejo_trabajo_por_familia = ifelse(P1880 == 9, 1, 0),
+    dejo_actual_por_familia = ifelse(P7450 == 3, 1, 0),
+    
+    # 8. HISTORIAL LABORAL
+    empleo_anterior = ifelse(P7028 == 6, 1, 0),  # Trabajador familiar
+    tiempo_desde_ultimo_trabajo = P7440S2, 
+    
+    # 9. OTRAS VARIABLES SOCIALES / IDENTITARIAS
+    campesina = ifelse(P2057 == 1, 1, 0),
+    # 10. Factor de expansión
+    fex = FEX_C18
   )
 
 variables_select <- variables_select %>%
-  filter(edad >= 18)
-
-#Filtrar registros por si son jefe de hogar
-variables_select <- variables_select %>%
-  filter(P6050 == 1)
-
-sapply(variables_select, function(x) sum(is.na(x)))
-```
-
-
-```{r Ajustar Variables}
-variables_etiquetas <- variables_select %>%
   mutate(
     # Sexo
     P3271 = case_when(
@@ -260,10 +331,57 @@ variables_etiquetas <- variables_select %>%
     )
   )
 
+# MADRE Y NÚMERO DE HIJOS -----------------------------------------------------
+hijos_por_hogar <- variables_select %>%
+  filter(P6050 == 3) %>%                        # 3 = hijo/a del jefe
+  count(DIRECTORIO, SECUENCIA_P, name = "n_hijos")
+
+# 2. Unir esa info a toda la base
+variables_select <- variables_select %>%             
+  left_join(hijos_por_hogar,
+            by = c("DIRECTORIO", "SECUENCIA_P")) %>%
+  mutate(
+    n_hijos = ifelse(is.na(n_hijos), 0, n_hijos),   # hogares sin hijos: 0
+    
+    # 3. Es madre = mujer que es jefa del hogar Y tiene al menos un hijo en el hogar
+    es_madre = case_when(
+      P6050 == 1 & n_hijos > 0 ~ 1,   # 1 = jefe(a) del hogar
+      TRUE ~ 0
+    )
+  )
+
 ```
 
-```{r Na}
-vars_relevantes <- c("P3271","edad","P3042","P6240","P6430","DPTO","fex_c", "estado_laboral","P6090","CLASE.x","INGLABO")
+# ANÁLISIS PARA MUJERES MAYORES DE EDAD QUE SON JEFAS DE HOGAR
+
+```{r Mayores de edad y jefes de hogar}
+variables_etiquetas <- variables_select %>%
+  mutate(
+    PERIODO = as.Date(as.character(PERIODO), format = "%Y%m%d"),
+    ANO = format(PERIODO, "%Y")
+  ) %>%
+  select(-PERIODO)
+
+variables_etiquetas <- variables_etiquetas %>%
+  mutate(
+    fex_c = as.numeric(FEX_C18),
+    edad = as.numeric(P6040),
+    P6050 = as.numeric(P6050)
+  )
+
+variables_etiquetas <- variables_etiquetas %>%
+  filter(edad >= 18)
+
+#Filtrar registros por si son jefe de hogar
+variables_etiquetas <- variables_etiquetas %>%
+  filter(P6050 == 1)
+
+sapply(variables_etiquetas, function(x) sum(is.na(x)))
+```
+
+```{r NA Variables más relevantes}
+vars_relevantes <- c("P3271","edad","P3042","P6240","P6430","DPTO","fex_c", "estado_laboral","P6090","CLASE.x","INGLABO","estado_civil"
+                     ,"educ")
 
 na_summary <- sapply(variables_etiquetas[vars_relevantes], function(x) {
   round(mean(is.na(x)) * 100, 2)
@@ -272,7 +390,7 @@ na_summary <- sapply(variables_etiquetas[vars_relevantes], function(x) {
 na_summary
 ```
 
-```{r Outliers}
+```{r Outliers de edad}
 Q1 <- quantile(variables_etiquetas$edad, 0.25)
 Q3 <- quantile(variables_etiquetas$edad, 0.75)
 IQR <- Q3 - Q1
@@ -282,21 +400,45 @@ lim_sup <- Q3 + 1.5*IQR
 sum(variables_etiquetas$edad < lim_inf | variables_etiquetas$edad > lim_sup)
 
 ```
+
 Para identificar posibles valores atípicos en la variable edad, se aplicó el criterio estadístico basado en el rango intercuartílico (IQR). Se calcularon los límites inferior y superior como Q1 − 1.5·IQR y Q3 + 1.5·IQR, respectivamente. A partir de este procedimiento se identificaron 9 observaciones con edades entre 103 y 108 años.
 
 Tras revisar manualmente estos registros, se concluyó que, aunque poco frecuentes, estas edades son plausibles en una encuesta poblacional como la GEIH. Por lo tanto, no se consideraron errores ni valores imposibles, y se decidió conservarlos en la base de datos, evitando introducir un sesgo por eliminación injustificada de adultos mayores. Esta decisión no afecta de manera significativa los análisis posteriores, dado su bajo peso relativo en la muestra.
 
-```{r Outliers}
+```{r Outliers y limpieza NAS observaciones}
 outliers_edad <- variables_etiquetas %>%
   filter(edad < lim_inf | edad > lim_sup) %>%
   select(DIRECTORIO, SECUENCIA_P, ORDEN, edad)
-
 outliers_edad
 
-
+variables_etiquetas <- variables_etiquetas %>%
+  # --------- CORREGIR ESTADO CIVIL ----------
+  mutate(
+    estado_civil = case_when(
+      !is.na(estado_civil) ~ estado_civil,         # Si viene reportado, lo dejamos igual
+      is.na(estado_civil) & vive_con_pareja == 1 ~ "Unida",   # Vive con pareja pero NA → Unida
+      is.na(estado_civil) & vive_con_pareja == 0 ~ "Soltera", 
+      TRUE ~ "Sin información"
+    )
+  ) %>%
+  # --------- CORREGIR EDUCACIÓN ----------
+  mutate(
+    educ = case_when(
+      !is.na(educ) ~ educ,                  # Si el dato existe, lo dejamos
+      is.na(educ) ~ "Sin educación",        # Si es NA, lo imputamos
+      TRUE ~ educ
+    ),
+    educ = factor(educ,
+                  levels = c("Sin educación",
+                             "Primaria",
+                             "Secundaria",
+                             "Media",
+                             "Técnica/Tecnológica",
+                             "Profesional+"))
+  )
 ```
 
-```{r }
+```{r Principales proporciones}
 summary(variables_etiquetas$edad)
 
 table(variables_etiquetas$P3271)
@@ -861,4 +1003,5 @@ resultados_zona
 ```
 
 Al segmentar la participación laboral por zona (urbano y rural), se encuentra una diferencia estadísticamente significativa entre hombres y mujeres jefes de hogar (p < 0.001 en ambos casos). Esto indica que, independientemente del contexto territorial, la probabilidad de participar en el mercado laboral es mayor para los hombres. Por lo tanto, la desigualdad de género en participación laboral es una condición estructural, que no depende únicamente de si el hogar se ubica en zona urbana o rural.
+
 
